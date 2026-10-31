@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "file_header": "# 文献生词本\n\n记录阅读中真正需要积累的单词和词组。释义以当时的语境为准。\n\n",
+  "fields": [
+    { "key": "word", "label": "单词 / 词组", "description": "用户选择的词或词组；不要擅自改换成同义词", "required": true, "multiline": false },
+    { "key": "lemma", "label": "原形", "description": "词典原形；短语保持完整", "required": false, "multiline": false },
+    { "key": "part_of_speech", "label": "词性", "description": "该语境下的词性，如 n. / v. / adj. / phrase", "required": false, "multiline": false },
+    { "key": "meaning", "label": "语境释义", "description": "结合文献原句的简明中文释义", "required": true, "multiline": true },
+    { "key": "example", "label": "文献原句", "description": "只能逐字摘录输入中包含该词的一句；找不到则留空，禁止编造", "required": false, "multiline": true },
+    { "key": "example_translation", "label": "原句译文", "description": "文献原句对应的中文译文；原句为空时也留空", "required": false, "multiline": true }
+  ],
+  "entry_template": "## {{word}}\n\n- **原形**：{{lemma}}\n- **词性**：{{part_of_speech}}\n- **语境释义**：{{meaning}}\n- **文献原句**：{{example}}\n- **原句译文**：{{example_translation}}\n\n---\n"
+}

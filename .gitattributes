@@ -1,0 +1,11 @@
+* text=auto
+.githooks/* text eol=lf
+# The migration test compares the exact SHA-256 of the old bundled template.
+fixtures/vocabulary-v0.1.json -text
+*.png -text
+*.ico -text
+*.woff -text
+*.woff2 -text
+*.ttf -text
+# Preserve the vendor's original license bytes, including its trailing spaces.
+assets/licenses/*.LICENSE.txt -text whitespace=-blank-at-eol
