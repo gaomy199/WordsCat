@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -9,8 +9,7 @@
     <ApplicationIcon>..\..\assets\wordscat.ico</ApplicationIcon>
     <AssemblyName>WordsCat</AssemblyName>
     <RootNamespace>ReadDock</RootNamespace>
-    <Version>0.3.4</Version>
-    <RuntimeFrameworkVersion Condition="'$(SelfContained)' == 'true'">8.0.33</RuntimeFrameworkVersion>
+    <Version>0.3.7</Version>
     <Company>WordsCat</Company>
     <Product>单词猫 WordsCat</Product>
     <Description>中英互译与 Obsidian 生词收藏</Description>

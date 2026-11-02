@@ -4,7 +4,7 @@
 
 Read `docs/PROJECT_STATE.md` and `docs/REQUIREMENTS.md` before inspecting the relevant source and `git status`. These files preserve project state across chats.
 
-This repository is the official source workspace for WordsCat (formerly ReadDock), a C# / .NET 8 Windows Forms application for Windows 11. The project is `src/WordsCat/WordsCat.csproj`. Keep the native stack; do not create a website, cloud environment, or plugin to replace it.
+This repository is the official source workspace for WordsCat (formerly ReadDock), a C# / .NET 10 (LTS) Windows Forms application for Windows 11. The project is `src/WordsCat/WordsCat.csproj`. Keep the native stack; do not create a website, cloud environment, or plugin to replace it.
 
 ## Implementation
 

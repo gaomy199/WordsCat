@@ -5,11 +5,23 @@ namespace ReadDock;
 internal sealed class SettingsDialog : Form
 {
     private readonly AppConfig config;
+    private readonly ICredentialVault credentials;
+    private readonly IConnectionTester connectionTester;
+    private readonly bool allowConnectionTest;
+    private readonly ComboBox provider = Choices(new("deepseek", "DeepSeek"), new("custom", "自定义 OpenAI 兼容"));
+    private readonly Label keyNotice = Ui.Label("", false, 9);
+    private readonly Button testButton;
+    private readonly Button getKeyButton;
+    private ConnectionTestResult? lastTest;
+    private bool savedKeyAvailable;
+    private bool refreshingChoices;
+    private string previousProvider = "";
+    private (string Url, string Text, string Vision) customDraft;
     private readonly TextBox apiKey = Ui.TextBox();
     private readonly TextBox baseUrl = Ui.TextBox();
-    private readonly ComboBox model = EditableCombo("deepseek-flash", "deepseek-v4-pro");
-    private readonly ComboBox visionModel = EditableCombo("deepseek-flash");
-    private readonly ComboBox engine = Choices(new("vision", "DeepSeek 视觉 · 数学与扫描文献"), new("local", "Windows 本地 OCR · 仅上传识别文字"));
+    private readonly ComboBox model = EditableCombo(ModelPresets.Model, "deepseek-v4-pro");
+    private readonly ComboBox visionModel = EditableCombo(ModelPresets.Model);
+    private readonly ComboBox engine = Choices(new("vision", "模型视觉 · 数学与扫描文献"), new("local", "Windows 本地 OCR · 仅上传识别文字"));
     private readonly DataGridView notebooks = new();
     private readonly TextBox template = Ui.TextBox();
     private readonly TextBox instruction = Ui.TextBox(true);
@@ -27,26 +39,33 @@ internal sealed class SettingsDialog : Form
     private bool notebookEvent;
     private readonly Action<AppConfig> applyAppearance;
     private readonly Action<string>? applyLanguage;
-    private readonly bool useCredentials;
     private readonly ReadingHistory? historyStore;
     private readonly Func<string, bool> confirmHistoryReduction;
     private readonly NumericUpDown historyLimit = new() { Minimum = 0, Maximum = 1000, Dock = DockStyle.Fill, Font = Ui.Font() };
     private readonly Label historyNotice = Ui.Label("", false, 9);
 
-    public SettingsDialog(AppConfig config, Action<AppConfig>? applyAppearance = null, bool useCredentials = true, ReadingHistory? historyStore = null, Func<string, bool>? confirmHistoryReduction = null, Action<string>? applyLanguage = null)
+    public SettingsDialog(AppConfig config, Action<AppConfig>? applyAppearance = null, bool useCredentials = true, ReadingHistory? historyStore = null, Func<string, bool>? confirmHistoryReduction = null, Action<string>? applyLanguage = null, ICredentialVault? credentialVault = null, IConnectionTester? connectionTester = null)
     {
         this.config = config;
+        credentials = credentialVault ?? (useCredentials ? new WindowsCredentialVault() : new DisabledCredentialVault());
+        this.connectionTester = connectionTester ?? new ConnectionTester();
+        allowConnectionTest = useCredentials || connectionTester != null;
         this.applyAppearance = applyAppearance ?? Ui.SetAppearance;
         this.applyLanguage = applyLanguage;
-        this.useCredentials = useCredentials;
         this.historyStore = historyStore;
         this.confirmHistoryReduction = confirmHistoryReduction ?? (message => UiText.Show(this, message, "永久删除历史记录", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) == DialogResult.Yes);
         config.NormalizeNotebooks();
         Text = "单词猫 · 设置"; Font = Ui.Font(); BackColor = Ui.Paper; AutoScaleMode = AutoScaleMode.None;
         ClientSize = new Size(820, 780); MinimumSize = new Size(720, 650);
         StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
-        apiKey.UseSystemPasswordChar = true; apiKey.Text = useCredentials ? CredentialStore.Read() : "";
-        apiKey.Enabled = useCredentials;
+        apiKey.UseSystemPasswordChar = true; apiKey.Clear(); apiKey.Name = "modelApiKey";
+        apiKey.Enabled = useCredentials || credentialVault != null;
+        try { savedKeyAvailable = credentials.HasKey(config.BaseUrl); } catch { lastTest = new(ConnectionTestKind.Unavailable); }
+        provider.Name = provider.AccessibleName = "modelProvider";
+        baseUrl.Name = "modelBaseUrl"; model.Name = "textModel"; visionModel.Name = "visionModel";
+        testStatus.Name = "connectionTestStatus"; keyNotice.Name = "modelKeyNotice";
+        SelectChoice(provider, config.ModelProvider); previousProvider = config.ModelProvider;
+        customDraft = config.ModelProvider == "custom" ? (config.BaseUrl, config.Model, config.VisionModel) : ("", "", "");
         baseUrl.Text = config.BaseUrl; model.Text = config.Model; visionModel.Text = config.VisionModel;
         SelectChoice(engine, config.ScreenshotEngine); SelectChoice(theme, config.ThemeMode);
         SelectChoice(language, config.UiLanguage); language.AccessibleName = "uiLanguage";
@@ -62,14 +81,19 @@ internal sealed class SettingsDialog : Form
         tabs.TabPages.AddRange([api, book, appearance, read]);
 
         var ap = FormPanel(); api.Controls.Add(ap);
-        AddField(ap, "DeepSeek API Key", apiKey);
-        AddField(ap, "文本翻译模型（可编辑）", model);
+        AddControl(ap, Ui.Label("模型服务", true, 11), 32);
+        AddField(ap, "服务预设", provider);
+        AddField(ap, "Base URL", baseUrl);
+        AddField(ap, "模型名", model);
+        AddField(ap, "API Key", apiKey);
+        AddControl(ap, keyNotice, 58);
+        testButton = Ui.Button("测试连接", async () => await TestAsync(), false, 140); testButton.Name = "testModelConnection";
+        getKeyButton = Ui.Button("获取 API Key", () => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://platform.deepseek.com/api_keys") { UseShellExecute = true }), false, 135);
+        AddControl(ap, Ui.Row(testButton, getKeyButton), 44);
+        AddControl(ap, testStatus, 64);
         AddField(ap, "截图识别方式", engine);
-        AddField(ap, "视觉识别模型（需要支持图片，默认 deepseek-flash）", visionModel);
-        AddField(ap, "API 基础地址", baseUrl);
-        AddNote(ap, "视觉模式：仅将本次框选图片发给所选 API，一次完成识别和翻译。\n本地模式：Windows OCR 识别后，仅发送文字；数学斜体及上下标可能误读。\nKey 保存在 Windows 凭据管理器；本地翻译历史条数可在阅读偏好调整。", 76);
-        AddControl(ap, Ui.Row(Ui.Button("测试文本连接", async () => await TestAsync(), false, 140), Ui.Button("获取 API Key", () => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://platform.deepseek.com/api_keys") { UseShellExecute = true }), false, 135)), 44);
-        AddControl(ap, testStatus, 70);
+        AddField(ap, "视觉模型（留空时使用文本模型）", visionModel);
+        AddNote(ap, "视觉模式发送当前截图；本地模式先使用 Windows OCR。测试连接只验证文本服务。", 54);
 
         var bp = FormPanel(); book.Controls.Add(bp);
         AddNote(bp, "按领域添加多个 Markdown 文件。主窗口和收藏窗口都可切换；启动时使用默认单词本。", 40);
@@ -102,10 +126,14 @@ internal sealed class SettingsDialog : Form
         root.Controls.Add(actions, 0, 2);
         Controls.Add(root);
         FormClosing += (_, _) => testCancellation?.Cancel();
-        FormClosed += (_, _) => { PreviewLanguage(config.UiLanguage); this.applyAppearance(config); logoPreview.Image?.Dispose(); };
+        FormClosed += (_, _) => { apiKey.Clear(); PreviewLanguage(config.UiLanguage); this.applyAppearance(config); logoPreview.Image?.Dispose(); };
         Ui.FinishLayout(this);
-        theme.SelectedIndexChanged += (_, _) => ApplyLiveAppearance();
-        language.SelectedIndexChanged += (_, _) => PreviewLanguage(Value(language));
+        provider.SelectedIndexChanged += (_, _) => { if (!refreshingChoices) ChangeProvider(); };
+        baseUrl.TextChanged += (_, _) => ServiceChanged();
+        model.TextChanged += (_, _) => ServiceChanged(); apiKey.TextChanged += (_, _) => ServiceChanged();
+        RefreshServiceText();
+        theme.SelectedIndexChanged += (_, _) => { if (!refreshingChoices) ApplyLiveAppearance(); };
+        language.SelectedIndexChanged += (_, _) => { if (!refreshingChoices) PreviewLanguage(Value(language)); };
         accent.TextChanged += (_, _) => ApplyLiveAppearance();
         brightness.ValueChanged += (_, _) => ApplyLiveAppearance();
         logo.TextChanged += (_, _) => { UpdateLogoPreview(); ApplyLiveAppearance(); };
@@ -116,8 +144,10 @@ internal sealed class SettingsDialog : Form
     {
         UiText.Language = value;
         UiText.Apply(this);
-        foreach (var choice in new[] { engine, theme, language }) choice.Refresh();
-        UpdateHistoryNotice();
+        refreshingChoices = true;
+        try { foreach (SoftComboBox choice in new[] { provider, engine, theme, language }) choice.RefreshLocalizedItems(); }
+        finally { refreshingChoices = false; }
+        UpdateHistoryNotice(); RefreshServiceText();
         applyLanguage?.Invoke(value);
     }
     void UpdateHistoryNotice()
@@ -136,7 +166,7 @@ internal sealed class SettingsDialog : Form
     {
         var label = Ui.Label(text, true, 9); label.Margin = new Padding(2, 3, 0, 2);
         AddControl(p, label, 28);
-        int width = c.AccessibleName == "uiLanguage" || c is ComboBox combo && combo.Items.Count == 3 ? 290
+        int width = c.AccessibleName is "uiLanguage" or "modelProvider" || c is ComboBox combo && combo.Items.Count == 3 ? 290
             : c is NumericUpDown ? 180 : c is ComboBox { DropDownStyle: ComboBoxStyle.DropDown } ? 450 : 0;
         if (c is TextBoxBase or ComboBox or NumericUpDown) AddControl(p, new FieldFrame(c, width), height);
         else AddControl(p, c, height);
@@ -229,9 +259,9 @@ internal sealed class SettingsDialog : Form
     AppConfig Proposed()
     {
         if (!Uri.TryCreate(baseUrl.Text.Trim().TrimEnd('/') + "/", UriKind.Absolute, out var uri) || uri.Scheme != "https" || !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment) || !string.IsNullOrEmpty(uri.UserInfo)) throw new InvalidOperationException("请输入有效的 HTTPS 基础地址。");
-        if (string.IsNullOrWhiteSpace(model.Text) || string.IsNullOrWhiteSpace(visionModel.Text)) throw new InvalidOperationException("请填写文本模型与视觉模型名称。");
+        if (string.IsNullOrWhiteSpace(model.Text)) throw new InvalidOperationException("请填写模型名称。");
         var c = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(config, AppConfig.Json), AppConfig.Json)!;
-        c.BaseUrl = baseUrl.Text.Trim().TrimEnd('/'); c.Model = model.Text.Trim(); c.VisionModel = visionModel.Text.Trim(); c.ScreenshotEngine = Value(engine);
+        c.BaseUrl = baseUrl.Text.Trim().TrimEnd('/'); c.Model = model.Text.Trim(); c.VisionModel = string.IsNullOrWhiteSpace(visionModel.Text) ? c.Model : visionModel.Text.Trim(); c.ModelProvider = Value(provider); c.ScreenshotEngine = Value(engine);
         c.ThemeMode = Value(theme); c.AccentColor = accent.Text.Trim(); Ui.ParseAccent(c.AccentColor); c.BackgroundBrightness = brightness.Value; c.LogoFile = logo.Text.Trim();
         c.TemplateFile = Path.GetFullPath(template.Text.Trim()); VocabularyTemplate.Load(c.TemplateFile);
         c.TranslationInstruction = instruction.Text.Trim(); c.Glossary = glossary.Text.Trim(); c.ShowFloating = floating.Checked; c.ShowOnStartup = startup.Checked;
@@ -247,23 +277,53 @@ internal sealed class SettingsDialog : Form
         if (c.Notebooks.Count == 0) throw new InvalidOperationException("请至少保留一个单词本。");
         c.NormalizeNotebooks(); return c;
     }
-    async Task TestAsync()
+    internal async Task TestAsync()
     {
-        if (!useCredentials) { testStatus.Text = "离线预览不读取凭据，也不发起模型请求。"; return; }
+        if (!allowConnectionTest) { SetTestResult(new(ConnectionTestKind.Offline)); return; }
         if (testCancellation != null) return;
-        testCancellation = new CancellationTokenSource(); testStatus.Text = "正在测试文本模型，会发起一次简短 API 请求…";
+        if (CredentialScope.Origin(baseUrl.Text).Length == 0 || string.IsNullOrWhiteSpace(model.Text))
+        { SetTestResult(new(ConnectionTestKind.InvalidConfiguration)); return; }
+        if (apiKey.Text.Trim().Length > 0 || !CredentialScope.Same(config.BaseUrl, baseUrl.Text))
+        { SetTestResult(new(ConnectionTestKind.SaveKeyFirst)); return; }
+        bool keyEnabled = apiKey.Enabled;
+        testCancellation = new CancellationTokenSource(); testButton.Enabled = false;
+        provider.Enabled = baseUrl.Enabled = model.Enabled = apiKey.Enabled = false;
+        testStatus.Text = "正在测试连接，仅发送简短测试请求…";
         try
         {
-            var c = new AppConfig { BaseUrl = baseUrl.Text.Trim().TrimEnd('/'), Model = model.Text.Trim() };
-            using var client = new DeepSeekClient();
-            string storedKey = CredentialStore.Read();
-            if (apiKey.Text.Trim() != storedKey) throw new InvalidOperationException("请先保存 API Key，再测试已保存的凭据。");
-            var r = await client.CompleteAsync(c, storedKey, [new("system", "Translate the user word into Simplified Chinese. Output only the translation."), new("user", "reading")], false, testCancellation.Token);
-            if (!IsDisposed) testStatus.Text = UiText.F("连接成功 · {0}\n输入 {1} / 输出 {2} tokens；截图视觉能力请用实际框选验证。", r.Text, r.InputTokens, r.OutputTokens);
+            var c = new AppConfig { BaseUrl = baseUrl.Text.Trim().TrimEnd('/'), Model = model.Text.Trim(), RequestTimeoutSeconds = config.RequestTimeoutSeconds };
+            var result = await connectionTester.TestAsync(c, credentials, testCancellation.Token);
+            if (!IsDisposed) SetTestResult(result);
         }
-        catch (OperationCanceledException) { }
-        catch (Exception ex) { if (!IsDisposed) testStatus.Text = SecretRedactor.Redact(ex.Message); }
-        finally { testCancellation?.Dispose(); testCancellation = null; }
+        catch (OperationCanceledException) { if (!IsDisposed) SetTestResult(new(ConnectionTestKind.Cancelled)); }
+        catch { if (!IsDisposed) SetTestResult(new(ConnectionTestKind.Unavailable)); }
+        finally
+        {
+            testCancellation?.Dispose(); testCancellation = null;
+            if (!IsDisposed) testButton.Enabled = true;
+            if (!IsDisposed) { provider.Enabled = baseUrl.Enabled = model.Enabled = true; apiKey.Enabled = keyEnabled; }
+        }
+    }
+    void SetTestResult(ConnectionTestResult result) { lastTest = result; testStatus.Text = result.MessageKey; }
+    void ServiceChanged() { lastTest = null; testStatus.Text = ""; RefreshServiceText(); }
+    void RefreshServiceText()
+    {
+        string hint = savedKeyAvailable && CredentialScope.Same(config.BaseUrl, baseUrl.Text)
+            ? "已保存密钥；留空保留，输入新密钥替换。" : "粘贴此服务的 API Key。";
+        apiKey.PlaceholderText = UiText.T(hint);
+        keyNotice.Text = "密钥只保存到 Windows 凭据管理器，留空保留已保存密钥。\n输入新密钥后请先保存设置，再测试连接。";
+        getKeyButton.Enabled = Value(provider) == "deepseek";
+        baseUrl.ReadOnly = Value(provider) == "deepseek";
+        if (lastTest != null) testStatus.Text = lastTest.MessageKey;
+    }
+    void ChangeProvider()
+    {
+        if (previousProvider == "custom") customDraft = (baseUrl.Text, model.Text, visionModel.Text);
+        previousProvider = Value(provider);
+        if (previousProvider == "deepseek")
+        { baseUrl.Text = ModelPresets.BaseUrl; model.Text = visionModel.Text = ModelPresets.Model; }
+        else { baseUrl.Text = customDraft.Url; model.Text = customDraft.Text; visionModel.Text = customDraft.Vision; }
+        apiKey.Clear(); lastTest = null; testStatus.Text = ""; RefreshServiceText();
     }
     void Save()
     {
@@ -286,9 +346,15 @@ internal sealed class SettingsDialog : Form
                 { var temp = Path.Combine(folder, Guid.NewGuid().ToString("N") + ".png"); try { image.Save(temp, System.Drawing.Imaging.ImageFormat.Png); File.Move(temp, stored, true); } finally { if (File.Exists(temp)) File.Delete(temp); } }
                 c.LogoFile = stored;
             }
-            c.Save(); if (useCredentials) CredentialStore.Save(apiKey.Text.Trim());
+            string replacement = apiKey.Text.Trim();
+            if (replacement.Any(char.IsWhiteSpace) || replacement.Any(char.IsControl) || replacement.Length > 1000)
+                throw new InvalidOperationException("API Key 格式无效，请重新粘贴完整密钥。");
+            if (replacement.Length == 0 && savedKeyAvailable && !CredentialScope.Same(config.BaseUrl, c.BaseUrl))
+                throw new InvalidOperationException("更换服务地址时，请输入并保存对应服务的新密钥。");
+            if (replacement.Length > 0) credentials.Save(replacement, c.BaseUrl);
+            c.Save(); apiKey.Clear();
             if (c.HistoryLimit == 0) historyStore?.Clear(); else historyStore?.Trim(c.HistoryLimit);
-            config.BaseUrl = c.BaseUrl; config.Model = c.Model; config.VisionModel = c.VisionModel; config.ScreenshotEngine = c.ScreenshotEngine;
+            config.ModelProvider = c.ModelProvider; config.BaseUrl = c.BaseUrl; config.Model = c.Model; config.VisionModel = c.VisionModel; config.ScreenshotEngine = c.ScreenshotEngine;
             config.Notebooks = c.Notebooks; config.DefaultNotebookId = c.DefaultNotebookId; config.ActiveNotebookId = c.ActiveNotebookId; config.TargetFile = c.TargetFile;
             config.TemplateFile = c.TemplateFile; config.TranslationInstruction = c.TranslationInstruction; config.Glossary = c.Glossary;
             config.ShowFloating = c.ShowFloating; config.ShowOnStartup = c.ShowOnStartup; config.ThemeMode = c.ThemeMode; config.AccentColor = c.AccentColor; config.BackgroundBrightness = c.BackgroundBrightness; config.LogoFile = c.LogoFile;

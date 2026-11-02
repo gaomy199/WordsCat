@@ -1,0 +1,15 @@
+name: Feature request
+description: Explain a reading problem and the improvement you would like.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What reading problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior and alternatives
+    validations:
+      required: true

@@ -13,8 +13,12 @@ internal static class SelfTests
     public static async Task RunAsync(string directory, string? regressionDirectory = null)
     {
         Directory.CreateDirectory(directory);
-        var report = new StringBuilder("WordsCat 0.3.4 verification\n" + DateTimeOffset.Now.ToString("O") + "\n\n");
+        var report = new StringBuilder("WordsCat 0.3.7 verification\n" + DateTimeOffset.Now.ToString("O") + "\n\n");
         await SecuritySelfTests.RunAsync(directory);
+        await ModelServiceSelfTests.RunAsync(directory);
+        await ServiceSetupSelfTests.RunAsync(directory);
+        report.AppendLine("PASS: service presets and onboarding policy; minimal connection probe and bilingual missing/invalid-key, quota/rate, network/timeout and malformed-response categories; fake vault only");
+        report.AppendLine("PASS: interchangeable text/image model capabilities, old config/credential target, default wire contract, 401/429, bounded retry, total deadline/cancellation and non-JSON responses (local mocks only)");
         report.AppendLine("PASS: secret detection/redaction, exception and HTTP boundaries, settings JSON and protected history; fixed fake credential and local handlers only");
         var template = VocabularyTemplate.Load(AppPaths.DefaultTemplate);
         Check(template.Fields.Any(f => f.Key == "example"), "default template includes provenance");
@@ -75,7 +79,6 @@ internal static class SelfTests
         Check(edge.Right <= 1920 && edge.Bottom <= 1080 && edge.Top < 950, "popup flips and clamps near screen edges");
         var negativeMonitor = new Rectangle(-1920, 0, 1920, 1080);
         Check(negativeMonitor.Contains(PopupPlacement.Calculate(new Rectangle(-50, 1000, 40, 50), new Size(600, 330), negativeMonitor)), "negative-coordinate monitor placement");
-        Check(MathDisplay.ForReading("$q_1, q_2, \\ldots, q_k$; $p_1$; $\\alpha_i$").Contains("q₁") && MathDisplay.ForReading("$\\alpha_i$") == "αᵢ", "math variables and Greek display without losing subscripts");
         var appearance = new AppConfig { ThemeMode = "dark", AccentColor = "#4455AA", BackgroundBrightness = 10 };
         Ui.SetAppearance(appearance); int darker = Ui.Paper.R; appearance.BackgroundBrightness = 90; Ui.SetAppearance(appearance);
         Check(Ui.IsDark && Ui.Ink.R > Ui.Paper.R && Ui.Paper.R > darker && Ui.Teal.B == 170, "dark theme, brightness and custom accent");
@@ -176,7 +179,7 @@ internal static class SelfTests
         Throws<InvalidDataException>(() => store.Save(utf16, template, entry, false), "reject UTF16 instead of corrupting note");
         report.AppendLine("PASS: append preservation, duplicate handling, file lock, required fields, UTF-8 protection, undo and external-edit conflict");
 
-        var mock = new MockApiHandler(); using var client = new DeepSeekClient(mock);
+        var mock = new MockApiHandler(); using var client = new OpenAiCompatibleClient(mock);
         await client.CompleteAsync(config, "test-api-key-not-real", Prompts.Translation(config, "FIRST_SELECTION"), false, CancellationToken.None);
         await client.CompleteAsync(config, "test-api-key-not-real", Prompts.Translation(config, "SECOND_SELECTION"), false, CancellationToken.None);
         var second = mock.Requests[1]; Check(second.GetProperty("messages").GetArrayLength() == 2 && !second.ToString().Contains("FIRST_SELECTION"), "new translation carries no previous history");

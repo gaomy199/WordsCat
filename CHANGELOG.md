@@ -1,5 +1,38 @@
 # 版本记录
 
+## 0.3.7 · 2026-11-02 · Uncommitted
+
+- Pass the popup's rendered/raw selection to the existing vocabulary editor and automatic enrichment, preserving the current recognized source as context. Hide the topmost popup while its modal editor is open, restore it after save/cancel, and keep the main window hidden. Add actual-window/local-mock regression coverage.
+- Add the publish-release.ps1 entry point over the existing self-contained win-x64 packager, require clean checkouts for hosted releases, and include application/runtime licenses and notices. Retain the existing dist ignore rule.
+- Add Windows build/offline verification CI and version-checked tag release workflows with ZIP/checksum attachments; local validation is static only, with no hosted workflow run or upload.
+- Split README installation/developer guidance, document unsigned SmartScreen and SHA256 verification, add private security reporting guidance, contributing/AI diff-review requirements, issue/PR templates, and Apache-2.0 LICENSE/NOTICE (copyright 2026 gaomy199).
+- Offline build, full actual-window verification, extracted-package self-tests/UI regressions and source/secret checks pass. Complete mouse-based popup selection/editor/cancel visual inspection on 2026-11-02. Local ZIP and validation evidence: docs/VALIDATION-v0.3.7.md. Hosted workflows remain statically checked only; no commit, push or publication.
+
+## 0.3.6 · 2026-11-01 · Uncommitted
+
+- Add service preset/key settings and a modeless first-use guide; keep keys masked and never prefill saved values. Blank preserves a saved key, replacement writes only to Credential Manager, and cancellation discards the draft.
+- Add minimal connection probes and localized status categories, fake-vault/local-handler regressions, legacy configuration inference and credential-origin metadata compatibility.
+- Refresh native preset item strings immediately when changing the UI language, preserving selected values and unsaved service/key drafts without triggering preset resets.
+- Offline build, full verification with actual windows, source/secret checks, and extracted portable-package self-tests/UI regressions pass. Inspect Chinese/English setup and settings in isolated offline previews; synchronize both user guides. Generate a local 0.3.6 Windows x64 ZIP with bundled .NET 10.0.14. Evidence: docs/VALIDATION-v0.3.6.md. No commit, push or GitHub publication.
+
+## 0.3.5 · 2026-10-31 · Uncommitted
+
+- Replace the popup copy button with a source/translation toggle. Both views use the main window's local KaTeX renderer, selectable content, adaptive height and existing scroll cap; retain the action-row styling and clear prior source state for a new selection or error.
+- Use a compact 16px popup reading font, with proportionally scaled formulas, following user review of the first rendered preview.
+- Introduce separate text/image model interfaces and a reusable OpenAI-compatible chat completions client. Preserve the existing DeepSeek default URL, model names, request extensions, saved settings and ReadDock credential target; local Windows OCR is unchanged. No service-selection UI is added.
+- Add backward-compatible timeout/retry options (100 seconds, zero retries by default), safe error boundaries and local mock regressions for success, 401, 429, timeout/cancellation and non-JSON responses. Tests never read saved keys or contact real services.
+- Add an offline switch to the local release packager for already restored dependencies. This task does not commit, push or publish to GitHub.
+- Build, full offline/actual-window verification (including the final 16px popup) and workspace/index secret guard pass. Computer Use confirms source/translation switching; the final local ZIP passes extracted self-tests. Evidence: docs/VALIDATION-v0.3.5.md.
+
+## .NET 10 migration · Uncommitted · 2026-10-31
+
+- Retarget Windows Forms to `net10.0-windows` (.NET 10 LTS) and remove the self-contained .NET 8.0.33 runtime pin; use the .NET 10 SDK's runtime selection.
+- Update SDK/runtime requirements and release/development guidance. Retain WebView2 1.0.3595.46 after reviewing its cached .NET 5+ build targets; no unrelated package or business-code changes.
+- Resolve five new WinForms WFO1000 analyzer errors with explicit default/serialization metadata and one nullable caption warning with an empty-string fallback. Business behavior and ReadDock compatibility identifiers are preserved.
+- Build without compiler warnings on SDK 10.0.403; full offline and actual-window verification passes on .NET 10.0.14, including existing WebView2 1.0.3595.46. Source/secret checks pass. Remove temporary migration notices and document the local `publish/` and `dist/` output locations. Evidence: docs/VALIDATION-v0.3.4.md.
+- Rebuild the local Windows x64 ZIP with .NET 10.0.14 and SHA-256 checksum. Verify the extracted app's offline and actual-window regressions, bundled-runtime resolution with empty DOTNET_ROOT, and credential scan; inspect its main/settings windows through Computer Use.
+- No real credentials or user Data are accessed or changed; no commit or push is performed.
+
 ## API credential security · Uncommitted
 
 - Add a shared credential detector/redactor for diagnostics, HTTP responses and errors, settings export, and translation history; preserve ReadDock credential/data compatibility identifiers.

@@ -7,9 +7,13 @@ namespace ReadDock;
 public sealed class AppConfig
 {
     public int SchemaVersion { get; set; } = 2;
-    public string BaseUrl { get; set; } = "https://api.deepseek.com";
-    public string Model { get; set; } = "deepseek-flash";
-    public string VisionModel { get; set; } = "deepseek-flash";
+    public string ModelProvider { get; set; } = "";
+    public bool ServiceGuideSeen { get; set; }
+    public string BaseUrl { get; set; } = ModelPresets.BaseUrl;
+    public string Model { get; set; } = ModelPresets.Model;
+    public string VisionModel { get; set; } = ModelPresets.Model;
+    public int RequestTimeoutSeconds { get; set; } = 100;
+    public int MaxRetries { get; set; } = 0;
     public string ScreenshotEngine { get; set; } = "vision";
     public string TargetFile { get; set; } = Path.Combine(AppPaths.DataDirectory, "文献生词.md");
     public string TemplateFile { get; set; } = Path.Combine(AppPaths.DataDirectory, "vocabulary.template.json");
@@ -52,6 +56,10 @@ public sealed class AppConfig
     }
     public void NormalizeNotebooks()
     {
+        if (ModelProvider is not ("deepseek" or "custom"))
+            ModelProvider = Uri.TryCreate(BaseUrl, UriKind.Absolute, out var providerUri) && ModelPresets.IsDeepSeek(providerUri) ? "deepseek" : "custom";
+        if (RequestTimeoutSeconds is < 1 or > 600 || MaxRetries is < 0 or > 5)
+            throw new InvalidDataException("模型请求超时须为 1—600 秒，重试次数须为 0—5。");
         UiLanguage = UiLanguage == "en" ? "en" : "zh-CN";
         TranslationDirection = "auto";
         if (TranslationInstruction == LegacyTranslationInstruction) TranslationInstruction = DefaultTranslationInstruction;

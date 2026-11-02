@@ -49,15 +49,43 @@ internal static class UiSelfTests
                 Ui.SetAppearance(new AppConfig());
                 using (var popup = new TranslationPopup("弹窗高度验证", () => { }, () => { }, () => { }))
                 {
-                    popup.SetResult("物理智能", "翻译完成 · 输入 92 / 输出 2 tokens"); popup.Show(host); await Task.Delay(100);
+                    const string popupSource = "SOURCE_ONLY $q_1$\n\n$$p=\\frac{m}{2}$$\n<script>not executable</script>";
+                    popup.SetResult("译文 $q_1$\n\n$$p=\\frac{m}{2}$$", "翻译完成 · 输入 92 / 输出 2 tokens", popupSource);
+                    popup.Show(host);
+                    async Task WaitPopup(string expected, bool fraction = false)
+                    {
+                        for (int attempt = 0; attempt < 100; attempt++)
+                        {
+                            await Task.Delay(100);
+                            string state = await popup.InspectReadingAsync("({text:document.getElementById('content').textContent,fractions:document.querySelectorAll('.mfrac').length,images:document.images.length,scripts:document.querySelectorAll('#content script').length,fonts:document.fonts.status})");
+                            using var parsed = JsonDocument.Parse(state);
+                            if (parsed.RootElement.TryGetProperty("text", out var value) && value.GetString()!.Contains(expected) && (!fraction || parsed.RootElement.GetProperty("fractions").GetInt32() > 0) && parsed.RootElement.GetProperty("fonts").GetString() == "loaded")
+                            {
+                                if (parsed.RootElement.GetProperty("images").GetInt32() != 0 || parsed.RootElement.GetProperty("scripts").GetInt32() != 0) throw new Exception("Popup interpreted source HTML.");
+                                await Task.Delay(200); return;
+                            }
+                        }
+                        throw new Exception("Popup did not render the current source/translation.");
+                    }
+                    await WaitPopup("译文", true);
+                    if (await popup.InspectReadingAsync("getComputedStyle(document.body).fontSize") != "\"16px\"") throw new Exception("Popup compact reading font was not applied.");
+                    var toggle = Descendants(popup).OfType<Button>().Single(b => b.Name == "popupOriginalToggle");
+                    if (Descendants(popup).OfType<Button>().Any(b => b.Text == "复制译文") || toggle.Text != "显示原文") throw new Exception("Popup action did not change to source toggle.");
+                    toggle.PerformClick(); await WaitPopup("SOURCE_ONLY", true);
+                    if (!popup.ShowingOriginal || toggle.Text != "显示译文") throw new Exception("Popup source toggle state failed.");
+                    toggle.PerformClick(); await WaitPopup("译文", true);
+                    if (popup.ShowingOriginal) throw new Exception("Popup failed to restore translation.");
+                    popup.SetResult("物理智能", "短译文", popupSource); await WaitPopup("物理智能");
                     int shortHeight = popup.Height;
                     popup.SetResult(string.Join("\n", Enumerable.Repeat("这是一行较长的翻译，用于验证纵向滚动和固定高度上限。", 80)), "长译文");
-                    await Task.Delay(100);
+                    await WaitPopup("这是一行较长的翻译");
                     int maxHeight = 330 * popup.DeviceDpi / 96;
                     if (shortHeight >= popup.Height || popup.Height > maxHeight + 3) throw new Exception("Popup height did not adapt or exceeded cap.");
-                    var contentBox = Descendants(popup).OfType<RichTextBox>().Single();
-                    if (contentBox.ScrollBars != RichTextBoxScrollBars.Vertical || contentBox.GetLineFromCharIndex(contentBox.TextLength) < 70)
-                        throw new Exception("Long popup text lost lines or vertical scrolling.");
+                    string scroll = await popup.InspectReadingAsync("document.documentElement.scrollHeight > document.documentElement.clientHeight");
+                    if (scroll != "true") throw new Exception("Long popup reading view lost vertical scrolling.");
+                    popup.SetLoading("下一选区");
+                    if (toggle.Enabled || popup.ShowingOriginal) throw new Exception("New selection retained popup source state.");
+                    popup.SetError("合成错误"); if (toggle.Enabled) throw new Exception("Error retained popup source toggle.");
                     popup.Close();
                 }
                 string logoFile = Path.Combine(directory, "test-logo.ico");
@@ -134,7 +162,7 @@ internal static class UiSelfTests
                 host.Hide();
                 var previewHistory = new ReadingHistory(directory);
                 previewHistory.Add("HISTORY RESTORE TEST", "历史译文示例", 100);
-                using (var main = new MainWindow(new AppConfig { TemplateFile = AppPaths.DefaultTemplate }, true, true))
+                using (var main = new MainWindow(new AppConfig { TemplateFile = AppPaths.DefaultTemplate, ServiceGuideSeen = true }, true, true))
                 {
                     main.Show(); await Task.Delay(400);
                     File.WriteAllText(Path.Combine(directory, "layout-main.json"), JsonSerializer.Serialize(Descendants(main).Where(c => c is FieldFrame or ComboBox or CheckBox || c.Name == "brandTitle").Select(c => new { type = c.GetType().Name, c.Name, c.Bounds, parent = c.Parent?.ClientSize }), AppConfig.Json));
@@ -241,8 +269,11 @@ internal static class UiSelfTests
                     }
                     main.Hide();
                 }
-                File.WriteAllText(Path.Combine(directory, "ui-test-results.txt"), "PASS: single-language brand, all main action icons, no manual language selector, automatic Chinese/English headings and swap; framed inputs stay inside rows and align with the follow-up button.\nPASS: language previews immediately in main and settings, compact framed choices, bilingual grid headings, cancel rolls back and save persists; English brand has no duplicate Chinese subtitle.\nPASS: actual WebView2 KaTeX fractions AND loaded KaTeX Main/Math fonts, inert HTML, reading theme and settings preview rollback.\nPASS: short popup shrinks, long popup caps height with vertical scrolling; history sidebar restores original; precise 90-record irreversible-deletion warning; deny preserves data, confirm trims.\nPASS: minimize retains taskbar, X hides and clears current input; three consecutive popup-to-main transitions and latest selection rendering. Foreground activation remains subject to Windows foreground policy. No credentials or model requests.");
+                await ServiceSetupSelfTests.RunUiAsync();
+                await PopupWordSelfTests.RunAsync();
+                File.WriteAllText(Path.Combine(directory, "ui-test-results.txt"), "PASS: service preset form, masked blank key, preserve/replace/cancel semantics, local probe, modeless first-use guide and offline safety.\nPASS: single-language brand, all main action icons, no manual language selector, automatic Chinese/English headings and swap; framed inputs stay inside rows and align with the follow-up button.\nPASS: language previews immediately in main and settings, compact framed choices, bilingual grid headings, cancel rolls back and save persists; English brand has no duplicate Chinese subtitle.\nPASS: actual WebView2 KaTeX fractions AND loaded KaTeX Main/Math fonts, inert HTML, reading theme and settings preview rollback.\nPASS: popup KaTeX renders source/translation with inert HTML, toggle resets for new selections/errors; short popup shrinks, long popup caps height with vertical scrolling; history sidebar restores original; precise 90-record irreversible-deletion warning; deny preserves data, confirm trims.\nPASS: minimize retains taskbar, X hides and clears current input; three consecutive popup-to-main transitions and latest selection rendering. Foreground activation remains subject to Windows foreground policy. No credentials or model requests.");
                 File.AppendAllText(Path.Combine(directory, "ui-test-results.txt"), "\nPASS: dock click toggles open/closed/open, pointer inside menu stays open, outside grace period resets and dismisses, menu action executes once and closes, drag saves position without opening; standard tray AutoClose restored.\nPASS: three sidebar collapse/expand cycles persist state, preserve source/history and restore reading width; collapsed toggle remains within every parent boundary.");
+                File.AppendAllText(Path.Combine(directory, "ui-test-results.txt"), "\nPASS: popup source/translation selections prefill the modal word editor and trigger local mock enrichment; popup stays hidden while editing, restores on cancel, main remains hidden and new captures clear selection.");
             }
             catch (Exception ex) { File.WriteAllText(Path.Combine(directory, "ui-test-failure.txt"), SecretRedactor.Redact(ex.ToString())); Environment.ExitCode = 1; }
             finally { host.Close(); }

@@ -68,7 +68,7 @@ internal static class Native
 
 internal static class CredentialStore
 {
-    private const string Target = "ReadDock.DeepSeek.ApiKey.v1";
+    private const string Target = ModelPresets.CredentialTarget;
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     struct CREDENTIAL
     {
@@ -85,21 +85,43 @@ internal static class CredentialStore
     [DllImport("advapi32.dll", EntryPoint = "CredReadW", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool CredRead(string target, uint type, uint flags, out IntPtr credential);
     [DllImport("advapi32.dll")] static extern void CredFree(IntPtr ptr);
     [DllImport("advapi32.dll", EntryPoint = "CredDeleteW", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool CredDelete(string target, uint type, uint flags);
-    public static string Read()
+    static bool MatchesScope(CREDENTIAL credential, string baseUrl) =>
+        CredentialScope.Matches(credential.Comment, baseUrl);
+    public static bool HasSavedKey(string baseUrl)
     {
-        if (!CredRead(Target, 1, 0, out var ptr)) return "";
-        try { var c = Marshal.PtrToStructure<CREDENTIAL>(ptr); string value = Marshal.PtrToStringUni(c.CredentialBlob, (int)c.CredentialBlobSize / 2) ?? ""; SecretRedactor.Register(value); return value; }
+        if (!CredRead(Target, 1, 0, out var ptr))
+        {
+            if (Marshal.GetLastWin32Error() == 1168) return false;
+            throw new InvalidOperationException("无法检查 Windows 凭据管理器。");
+        }
+        // Presence and origin metadata only. Never decode the secret for UI display.
+        try { var c = Marshal.PtrToStructure<CREDENTIAL>(ptr); return c.CredentialBlobSize > 0 && MatchesScope(c, baseUrl); }
         finally { CredFree(ptr); }
     }
-    public static void Save(string key)
+    public static string ReadFor(string baseUrl)
+    {
+        if (!CredRead(Target, 1, 0, out var ptr)) return "";
+        try
+        {
+            var c = Marshal.PtrToStructure<CREDENTIAL>(ptr);
+            if (!MatchesScope(c, baseUrl)) return "";
+            string value = Marshal.PtrToStringUni(c.CredentialBlob, (int)c.CredentialBlobSize / 2) ?? "";
+            SecretRedactor.Register(value); return value;
+        }
+        finally { CredFree(ptr); }
+    }
+    public static string Read() => ReadFor(ModelPresets.BaseUrl);
+    public static void Save(string key) => SaveFor(key, ModelPresets.BaseUrl);
+    public static void SaveFor(string key, string baseUrl)
     {
         SecretRedactor.Register(key);
         if (string.IsNullOrWhiteSpace(key)) { CredDelete(Target, 1, 0); return; }
         if (key.Length > 1000) throw new InvalidOperationException("API Key 长度异常。");
+        if (CredentialScope.Origin(baseUrl).Length == 0) throw new InvalidOperationException("请输入有效的 HTTPS 基础地址。");
         var blob = Marshal.StringToCoTaskMemUni(key);
         try
         {
-            var c = new CREDENTIAL { Type = 1, TargetName = Target, Comment = "单词猫 DeepSeek API Key", CredentialBlobSize = (uint)Encoding.Unicode.GetByteCount(key), CredentialBlob = blob, Persist = 2, UserName = Environment.UserName, TargetAlias = "" };
+            var c = new CREDENTIAL { Type = 1, TargetName = Target, Comment = CredentialScope.Prefix + CredentialScope.Origin(baseUrl), CredentialBlobSize = (uint)Encoding.Unicode.GetByteCount(key), CredentialBlob = blob, Persist = 2, UserName = Environment.UserName, TargetAlias = "" };
             if (!CredWrite(ref c, 0)) throw new InvalidOperationException("Windows 凭据管理器保存失败，错误码：" + Marshal.GetLastWin32Error());
         }
         finally { Marshal.ZeroFreeCoTaskMemUnicode(blob); }

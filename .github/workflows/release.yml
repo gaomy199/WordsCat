@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Validate tag against project version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $taskProject = [xml](Get-Content src/WordsCat/WordsCat.csproj -Raw)
+          $taskVersion = [string]$taskProject.Project.PropertyGroup.Version
+          if ($taskVersion -notmatch '^\d+\.\d+\.\d+$' -or $env:RELEASE_TAG -cne ('v' + $taskVersion)) {
+            throw 'Release tag must exactly match the project version.'
+          }
+      - name: Build and verify offline (no interactive UI)
+        run: |
+          ./build.ps1
+          ./verify.ps1
+          ./scripts/check-source.ps1
+      - name: Package self-contained Windows x64
+        run: ./scripts/publish-release.ps1 -RequireClean
+      - name: Verify the extracted package
+        run: |
+          $taskProject = [xml](Get-Content src/WordsCat/WordsCat.csproj -Raw)
+          $taskVersion = [string]$taskProject.Project.PropertyGroup.Version
+          Expand-Archive -LiteralPath "dist/WordsCat-$taskVersion-win-x64.zip" -DestinationPath .test-results/release-extracted
+          ./verify.ps1 -PublishPath .test-results/release-extracted/WordsCat
+          ./scripts/check-secrets.ps1
+      - name: Create GitHub Release and attach ZIP and checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $taskProject = [xml](Get-Content src/WordsCat/WordsCat.csproj -Raw)
+          $taskVersion = [string]$taskProject.Project.PropertyGroup.Version
+          gh release create "$env:RELEASE_TAG" "dist/WordsCat-$taskVersion-win-x64.zip" dist/SHA256SUMS.txt --verify-tag --generate-notes --title "WordsCat $taskVersion" --notes "Windows 11 x64 portable ZIP; extract all files and run WordsCat.exe. .NET is bundled. Unsigned build may trigger SmartScreen; verify SHA256SUMS.txt. Preserve Data and notebooks when upgrading. WebView2 enables formula reading; text fallback remains available."
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub Release creation failed; existing releases are never overwritten.' }

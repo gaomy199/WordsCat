@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible WordsCat problem using synthetic, non-sensitive examples.
+body:
+  - type: markdown
+    attributes:
+      value: "For vulnerabilities, use SECURITY.md. Never include keys, Authorization headers, private documents or Data."
+  - type: input
+    id: version
+    attributes:
+      label: WordsCat version and installation type
+      placeholder: Version; portable ZIP or source build
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Windows version, display scaling, and WebView2 availability
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Use a short synthetic example and remove personal information from screenshots.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual result
+    validations:
+      required: true

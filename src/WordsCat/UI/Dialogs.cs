@@ -5,7 +5,7 @@ internal sealed class WordDialog : Form
     private readonly AppConfig config;
     private readonly VocabularyTemplate template;
     private readonly VocabularyStore store;
-    private readonly DeepSeekClient api;
+    private readonly ITextModelClient api;
     private readonly Func<string> readKey;
     private readonly Dictionary<string, TextBox> editors = [];
     private readonly string original;
@@ -17,10 +17,10 @@ internal sealed class WordDialog : Form
     private readonly ComboBox notebookChoice = new SoftComboBox() { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = Ui.Font() };
     private CancellationTokenSource? cancellation;
     public bool Saved { get; private set; }
-    public WordDialog(AppConfig config, VocabularyStore store, DeepSeekClient api, string word, string original, Func<string>? readKey = null)
+    public WordDialog(AppConfig config, VocabularyStore store, ITextModelClient api, string word, string original, Func<string>? readKey = null)
     {
         this.config = config; this.store = store; this.api = api; this.original = original;
-        this.readKey = readKey ?? CredentialStore.Read;
+        this.readKey = readKey ?? (() => CredentialStore.ReadFor(config.BaseUrl));
         template = VocabularyTemplate.Load(config.TemplateFile);
         Text = "单词猫 · 收藏生词"; Font = Ui.Font(); BackColor = Ui.Paper; AutoScaleMode = AutoScaleMode.None;
         ClientSize = new Size(700, 740); MinimumSize = new Size(620, 580); StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
@@ -38,7 +38,7 @@ internal sealed class WordDialog : Form
         {
             int r = form.RowCount++; form.RowStyles.Add(new RowStyle(SizeType.Absolute, f.Multiline ? 88 : 48));
             form.Controls.Add(Ui.Label(f.Label + (f.Required ? " *" : ""), true, 9), 0, r);
-            var box = Ui.TextBox(f.Multiline); box.Margin = new Padding(0, 5, 0, 9); editors[f.Key] = box; form.Controls.Add(box, 1, r);
+            var box = Ui.TextBox(f.Multiline); box.Name = "wordField_" + f.Key; box.Margin = new Padding(0, 5, 0, 9); editors[f.Key] = box; form.Controls.Add(box, 1, r);
             box.TextChanged += (_, _) => UpdatePreview();
         }
         editPage.Controls.Add(form);

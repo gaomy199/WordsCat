@@ -6,8 +6,11 @@ internal sealed class MainWindow : Form
 {
     private readonly AppConfig config;
     private readonly bool offlinePreview;
-    string ReadKey() => offlinePreview ? "" : CredentialStore.Read();
-    private readonly DeepSeekClient api = new();
+    private readonly ICredentialVault credentials;
+    private readonly bool customVault;
+    private ServiceSetupGuide? setupGuide;
+    string ReadKey() => offlinePreview ? "" : credentials.Read(config.BaseUrl);
+    private readonly IModelService api;
     private readonly VocabularyStore store = new();
     private readonly ReadingHistory history;
     private readonly ListBox historyList = new() { Dock = DockStyle.Fill, IntegralHeight = false, Font = Ui.Font(9), AccessibleName = "最近翻译记录" };
@@ -48,8 +51,11 @@ internal sealed class MainWindow : Form
     private string sessionDirection = "";
     private readonly List<string> hotkeyFailures = [];
 
-    public MainWindow(AppConfig config, bool previewMode, bool offlinePreview = false)
+    public MainWindow(AppConfig config, bool previewMode, bool offlinePreview = false, IModelService? modelService = null, ICredentialVault? credentialVault = null)
     {
+        api = modelService ?? new OpenAiCompatibleClient();
+        customVault = credentialVault != null;
+        credentials = credentialVault ?? (offlinePreview ? new DisabledCredentialVault() : new WindowsCredentialVault());
         this.config = config;
         this.offlinePreview = offlinePreview;
         config.NormalizeNotebooks();
@@ -152,7 +158,11 @@ internal sealed class MainWindow : Form
             // edit tab has a handle. Create it once so paste/capture updates headings too.
             _ = source.Handle;
             if (config.ShowFloating) floating.Show();
-            if (!config.ShowOnStartup && !previewMode) Hide();
+            bool needsGuide = false;
+            if (!config.ServiceGuideSeen)
+                try { needsGuide = ServiceSetupGuide.ShouldShow(config, credentials.HasKey(config.BaseUrl)); }
+                catch { SetStatus("无法检查已保存密钥，请在设置中检查模型服务。", true); }
+            if (!config.ShowOnStartup && !previewMode && !needsGuide) Hide();
             if (hotkeyFailures.Count > 0) SetStatus(UiText.F("快捷键被其他软件占用：{0}。可使用悬浮菜单。", string.Join(", ", hotkeyFailures)), true);
             if (history.LoadError != null) SetStatus(history.LoadError, true);
             if (previewMode)
@@ -160,6 +170,11 @@ internal sealed class MainWindow : Form
                 source.Text = "Let us put $\\theta=q$. The Hamiltonian function $H$ is given by\n\n$$H=T+V=\\frac{m}{2}(l\\dot{q})^2+mgl(1-\\cos q)$$\n\nSince $p$ is defined by\n\n$$p=\\frac{\\partial T}{\\partial\\dot q}=ml^2\\dot q$$";
                 translation.Text = "令 $\\theta=q$。哈密顿函数 $H$ 为\n\n$$H=T+V=\\frac{m}{2}(l\\dot{q})^2+mgl(1-\\cos q)$$\n\n由于 $p$ 定义为\n\n$$p=\\frac{\\partial T}{\\partial\\dot q}=ml^2\\dot q$$";
                 SetStatus("界面示例 · 当前译文为内置示例，未调用 API。可在设置中配置后开始使用。");
+            }
+            if (needsGuide)
+            {
+                setupGuide = new ServiceSetupGuide(Settings, () => { config.ServiceGuideSeen = true; TrySaveConfig(); });
+                setupGuide.Show(this);
             }
         };
         KeyDown += (_, e) => { if (e.Control && e.KeyCode == Keys.Q && !dialogOpen) { e.Handled = true; Quit(); } };
@@ -294,7 +309,7 @@ internal sealed class MainWindow : Form
         SetStatus("译文已放入左侧，已自动识别语言，可重新翻译。");
     }
     void AddMenu(string text, Action action) => menu.Items.Add(text, null, (_, _) => { if (!busy && !dialogOpen) action(); else SetStatus("请先完成或取消当前操作。"); });
-    void UpdateBadge() => modelBadge.Text = "DeepSeek  ·  " + config.Model + "  ·  v0.3.4";
+    void UpdateBadge() => modelBadge.Text = (config.ModelProvider == "custom" ? UiText.T("自定义 OpenAI 兼容") : "DeepSeek") + "  ·  " + config.Model + "  ·  v0.3.7";
     void SetStatus(string text, bool error = false) { text = SecretRedactor.Redact(UiText.T(text)); status.Text = text; status.ForeColor = error ? Color.FromArgb(196, 110, 56) : Ui.Muted; if (popup is { IsDisposed: false }) popup.UpdateStatus(text, error); }
     void SetBusy(bool value)
     {
@@ -399,7 +414,7 @@ internal sealed class MainWindow : Form
                     source.Text = r.Original; translation.Text = r.Translation; CompleteSession(r.Original, r.Translation);
                     currentConversation.AddRange(Prompts.Translation(config, r.Original)); currentConversation.Add(new("assistant", r.Translation));
                     string detail = UiText.F("视觉识别完成 · 输入 {0} / 输出 {1} tokens", r.InputTokens, r.OutputTokens) + (r.Uncertainty.Length > 0 ? UiText.T(" · 待核对：") + r.Uncertainty : "");
-                    SetStatus(detail); popup?.SetResult(r.Translation, detail);
+                    SetStatus(detail); popup?.SetResult(r.Translation, detail, r.Original);
                     RetainTranslation(r.Original, r.Translation);
                 }
                 else
@@ -431,7 +446,7 @@ internal sealed class MainWindow : Form
         source.Text = text; translation.Text = r.Text; CompleteSession(text, r.Text);
         currentConversation.AddRange(messages); currentConversation.Add(new("assistant", r.Text));
         SetStatus(UiText.F("翻译完成 · 输入 {0} / 输出 {1} tokens · 可在左侧选词收藏。", r.InputTokens, r.OutputTokens));
-        popup?.SetResult(r.Text, UiText.F("翻译完成 · 输入 {0} / 输出 {1} tokens", r.InputTokens, r.OutputTokens));
+        popup?.SetResult(r.Text, UiText.F("翻译完成 · 输入 {0} / 输出 {1} tokens", r.InputTokens, r.OutputTokens), text);
         RetainTranslation(text, r.Text);
     }
     async Task FollowUpAsync()
@@ -455,27 +470,38 @@ internal sealed class MainWindow : Form
     void OpenWordDialog(IWin32Window owner, bool showMain)
     {
         if (busy || dialogOpen) return;
+        var popupOwner = owner as TranslationPopup;
+        bool restorePopup = popupOwner is { Visible: true };
         try
         {
-            string word = (sourceReading.SelectedText.Length > 0 ? sourceReading.SelectedText : source.SelectedText).Trim();
+            string word = (popupOwner != null ? popupOwner.SelectedText : sourceReading.SelectedText.Length > 0 ? sourceReading.SelectedText : source.SelectedText).Trim();
             if (word.Length == 0 && source.Text.Trim().Length <= 80 && !source.Text.Contains('\n')) word = source.Text.Trim();
             if (word.Length > 160) { SetStatus("请选择一个单词或短语，最多 160 个字符。", true); return; }
             if (showMain) ShowMain(); dialogOpen = true;
             using var dialog = new WordDialog(config, store, api, word, source.Text, ReadKey);
+            // A topmost capture popup must not cover its modal editor. Preserve the
+            // result while editing, then restore it without opening the main window.
+            dialog.TopMost = (owner as Form)?.TopMost == true;
+            if (restorePopup) popupOwner!.Hide();
             dialog.ShowDialog(owner);
             if (dialog.Saved) { RefreshNotebooks(); undoButton.Enabled = true; SetStatus(UiText.T("已收藏到：") + config.ActiveNotebook.File); }
         }
         catch (Exception ex) { Ui.Error(this, ex); }
-        finally { dialogOpen = false; }
+        finally
+        {
+            dialogOpen = false;
+            if (restorePopup && !quitting && popupOwner is { IsDisposed: false } && ReferenceEquals(popup, popupOwner)) popupOwner.Show();
+        }
     }
     void Settings()
     {
         if (busy || dialogOpen) return;
+        if (setupGuide is { IsDisposed: false }) setupGuide.Close();
         try
         {
             ShowMain(); dialogOpen = true;
             int oldHistoryLimit = config.HistoryLimit;
-            using var dialog = new SettingsDialog(config, RefreshAppearance, !offlinePreview, history, applyLanguage: RefreshLanguage); dialog.ShowDialog(this);
+            using var dialog = new SettingsDialog(config, RefreshAppearance, !offlinePreview, history, applyLanguage: RefreshLanguage, credentialVault: offlinePreview && !customVault ? null : credentials); dialog.ShowDialog(this);
             RefreshLanguage(config.UiLanguage); SetStatus("就绪");
             if (config.HistoryLimit < oldHistoryLimit) ClearSession();
             RefreshAppearance(config);
@@ -491,7 +517,7 @@ internal sealed class MainWindow : Form
         sourceReading.RefreshLanguage(); translationReading.RefreshLanguage(); UiText.Apply(floating);
         tray.Text = UiText.T("单词猫 WordsCat · Ctrl+Alt+S 截图翻译");
         question.PlaceholderText = UiText.T("输入语法、句意或追问当前选区其他问题");
-        UpdateDirectionLabels(); RefreshHistory();
+        UpdateDirectionLabels(); RefreshHistory(); UpdateBadge();
         ApplySidebarState();
     }
     void RefreshAppearance(AppConfig appearance)
@@ -539,7 +565,7 @@ internal sealed class MainWindow : Form
     protected override void OnHandleDestroyed(EventArgs e) { for (int i = 1; i <= 4; i++) Native.UnregisterHotKey(Handle, i); base.OnHandleDestroyed(e); }
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { DismissPopup(true); currentConversation.Clear(); sessionOriginal = ""; sessionTranslation = ""; tips.Dispose(); foregroundTracker.Dispose(); tray.Dispose(); floating.Dispose(); menu.Dispose(); api.Dispose(); dockIcon.Dispose(); }
+        if (disposing) { setupGuide?.Dispose(); DismissPopup(true); currentConversation.Clear(); sessionOriginal = ""; sessionTranslation = ""; tips.Dispose(); foregroundTracker.Dispose(); tray.Dispose(); floating.Dispose(); menu.Dispose(); api.Dispose(); dockIcon.Dispose(); }
         base.Dispose(disposing);
     }
 }

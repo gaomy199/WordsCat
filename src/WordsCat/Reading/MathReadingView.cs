@@ -13,19 +13,29 @@ internal sealed class MathReadingView : UserControl
     readonly PictureBox picture = new() { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
     readonly System.Windows.Forms.Timer refresh = new() { Interval = 180 };
     bool initialized, starting, documentReady;
+    readonly bool compact;
+    internal event Action? Rendered;
     const string DocumentUrl = "https://readdock-assets.invalid/reader.html";
     public string SelectedText { get; private set; } = "";
     public string? RenderError { get; private set; }
     internal string NavigationDiagnostic { get; private set; } = "not initialized";
 
-    public MathReadingView(RichTextBox editor, bool original)
+    public MathReadingView(RichTextBox editor, bool original, bool compact = false)
     {
+        this.compact = compact;
         this.editor = editor; Dock = DockStyle.Fill;
         var reading = new TabPage("阅读"); reading.Controls.Add(browser);
         var raw = new TabPage(original ? "编辑原文" : "文本"); raw.Controls.Add(editor);
         tabs.TabPages.AddRange([reading, raw]);
         if (original) { var image = new TabPage("原始截图"); image.Controls.Add(picture); tabs.TabPages.Add(image); }
-        Controls.Add(tabs);
+        if (compact)
+        {
+            reading.Controls.Remove(browser);
+            raw.Controls.Remove(editor);
+            editor.ReadOnly = true; editor.Dock = DockStyle.Fill;
+            editor.Visible = false; Controls.Add(editor); Controls.Add(browser);
+        }
+        else Controls.Add(tabs);
         browser.CreationProperties = new CoreWebView2CreationProperties
         { UserDataFolder = ReadingRuntime.Folder, IsInPrivateModeEnabled = true };
         editor.TextChanged += (_, _) => { SelectedText = ""; refresh.Stop(); refresh.Start(); };
@@ -72,12 +82,14 @@ internal sealed class MathReadingView : UserControl
         catch (Exception ex)
         {
             if (IsDisposed) return;
-            RenderError = ex.Message;
+            RenderError = SecretRedactor.Redact(ex.Message);
+            if (compact) { browser.Visible = false; editor.Visible = true; editor.BringToFront(); Rendered?.Invoke(); return; }
             tabs.SelectedIndex = 1;
             tabs.TabPages[0].Controls.Add(new Label { Dock = DockStyle.Fill, Text = "公式阅读视图未能启动，请安装 Microsoft Edge WebView2 Runtime。可继续使用文本页。", ForeColor = Ui.Ink });
         }
     }
     public void RefreshAppearance() { browser.DefaultBackgroundColor = Ui.Surface; Render(); }
+    internal void RefreshContent() { refresh.Stop(); Render(); }
     public void RefreshLanguage() => UiText.Apply(this);
     internal Task<string> InspectAsync(string script) => initialized
         ? browser.ExecuteScriptAsync(script) : Task.FromResult(JsonSerializer.Serialize(new { error = RenderError ?? "initializing" }));
@@ -86,7 +98,12 @@ internal sealed class MathReadingView : UserControl
         if (!initialized || !documentReady || IsDisposed) return;
         SelectedText = "";
         browser.DefaultBackgroundColor = Ui.Surface;
-        try { await browser.ExecuteScriptAsync("window.setReading(" + ReadingContent.Payload(editor.Text) + ");"); }
+        try
+        {
+            string size = compact ? "document.body.style.fontSize='16px';" : "";
+            await browser.ExecuteScriptAsync(size + "window.setReading(" + ReadingContent.Payload(editor.Text) + ");");
+            if (!IsDisposed) Rendered?.Invoke();
+        }
         catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException or System.Runtime.InteropServices.COMException) { RenderError = ex.Message; }
     }
     public void SetCapture(Image? image)
@@ -99,7 +116,7 @@ internal sealed class MathReadingView : UserControl
     }
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { refresh.Dispose(); picture.Image?.Dispose(); }
+        if (disposing) { refresh.Dispose(); picture.Image?.Dispose(); if (compact) { tabs.Dispose(); picture.Dispose(); } }
         base.Dispose(disposing);
     }
 }

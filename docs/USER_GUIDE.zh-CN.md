@@ -1,10 +1,14 @@
-# 单词猫 WordsCat 0.3.4 · Windows 11
+# 单词猫 WordsCat 0.3.7 · Windows 11
 
-中英互译与 Obsidian 生词收藏。主窗口右上角显示 `v0.3.4`。
+中英互译与 Obsidian 生词收藏。主窗口右上角显示 `v0.3.7`。
 
 ## 下载即用
 
-前往 [GitHub Releases](https://github.com/gaomy199/WordsCat/releases/latest)，下载 `WordsCat-0.3.4-win-x64.zip`，完整解压后双击 `WordsCat/WordsCat.exe`。不需要下载源码仓库或自行构建；压缩包已包含 .NET 8 运行时。GitHub 自动附带的 Source code 压缩包是源码，请选择带有 win-x64 名称的程序压缩包。
+前往 [GitHub Releases](https://github.com/gaomy199/WordsCat/releases/latest)，下载 `WordsCat-0.3.7-win-x64.zip`，完整解压后双击 `WordsCat/WordsCat.exe`。自包含便携包不需要下载源码仓库或自行构建，已包含 .NET 10 Windows Desktop Runtime。GitHub 自动附带的 Source code 压缩包是源码，请选择带有 win-x64 名称的程序压缩包。
+
+本地打包后的直接可用压缩包位于项目根目录下的 `dist/WordsCat-0.3.7-win-x64.zip`，校验文件为 `dist/SHA256SUMS.txt`。默认 `publish/` 是依赖本机 .NET 10 运行时的开发构建目录；生成本地压缩包不会自动上传 GitHub。
+
+当前 0.3.7 为本地工作区版本，尚未发布到 GitHub；发布对应版本前请使用本地压缩包。
 
 目前提供 Windows 11 x64 便携版本；首次使用在设置中填写 API Key 和单词本。升级先退出旧版，保留原有 Data 文件夹和 Markdown 笔记。
 
@@ -16,7 +20,7 @@
 4. 若放到新目录，重新在设置中添加已有 Markdown 文件即可。Windows 同一用户保存的 DeepSeek Key 可继续使用。
 5. 如果仍看到旧字段，在「设置 → 单词本与模板」点「使用精简模板」，保存设置。
 
-Release 便携包已随包提供 .NET 8 Windows Desktop Runtime。公式阅读使用 Microsoft Edge WebView2 Runtime，公式字体和 KaTeX 已随包提供，阅读渲染无需联网；缺少 WebView2 时可先使用文本页。不要只移动 exe，也不要在 ZIP 内直接运行；保留 assets/math 文件夹。
+当前源码要求 .NET 10 SDK；默认开发构建的运行环境为 .NET 10 Windows Desktop Runtime（x64），自包含 Release 构建会随包提供该运行时。公式阅读使用 Microsoft Edge WebView2 Runtime，公式字体和 KaTeX 已随包提供，阅读渲染无需联网；缺少 WebView2 时可先使用文本页。不要只移动 exe，也不要在 ZIP 内直接运行；保留 assets/math 文件夹。
 
 ## 界面语言与中英互译
 
@@ -36,7 +40,11 @@ Release 便携包已随包提供 .NET 8 Windows Desktop Runtime。公式阅读�
 
 打开 `WordsCat.exe`，进入「设置」。
 
-**模型与识别**：填写 DeepSeek API Key。默认官方地址为 `https://api.deepseek.com`，文本与视觉模型均为 `deepseek-flash`。API Key 由 Windows 凭据管理器保存，不写入配置 JSON。无需将 Key 发到聊天中。
+首次启动且未配置 Key 时，会出现可关闭的简短引导，可点「打开设置」或「稍后设置」；不会阻塞文本视图。
+
+**模型与识别 → 模型服务**：预设可选 DeepSeek 或「自定义 OpenAI 兼容」。DeepSeek 默认地址仍为 `https://api.deepseek.com`，文本与视觉模型均为 `deepseek-flash`；自定义服务填写其 HTTPS Base URL 和模型名。视觉模型留空时使用文本模型，需要该模型支持图片输入。
+
+API Key 输入框掩码显示，每次打开都留空，不回显已保存值。Key 只写入 Windows 凭据管理器，不写入配置 JSON。留空保存保留已有 Key，输入新值并保存才替换，取消则丢弃输入。更换服务来源时须保存对应服务的 Key；旧 ReadDock 凭据继续兼容。无需将 Key 发到聊天中。
 
 截图有两种模式：
 
@@ -49,7 +57,7 @@ Release 便携包已随包提供 .NET 8 Windows Desktop Runtime。公式阅读�
 
 没有 Key 时只做本地识别并显示原文；不会把英文原文当作已经完成的中文翻译。中文 Windows OCR 对数学字体仍可能误读，这也是视觉模式加入的原因。
 
-「测试文本连接」只测试一次简短的文字请求，不验证视觉能力。模型服务器的日志、缓存及数据保留按服务商政策处理。
+保存后重新打开设置，点「测试连接」：使用已保存凭据，只发送一次最小文字请求，不包含文献内容或图片，最多等待 15 秒、不重试。结果分别提示未配置 Key、401 Key 无效、402/429 额度或频率限制、网络或超时、返回格式异常。新 Key 或新地址未保存时会提示先保存；测试成功只说明文本服务响应，不验证视觉能力。模型服务器的日志、缓存及数据保留按服务商政策处理。
 
 ## 设置不同领域的单词本
 
@@ -74,7 +82,7 @@ Release 便携包已随包提供 .NET 8 Windows Desktop Runtime。公式阅读�
 | `Ctrl+Alt+R` | 显示或隐藏主窗口 |
 | `Ctrl+Q` | 在主窗口退出程序 |
 
-截图后默认在选区下方显示一个简洁弹窗，不弹出主窗口。下方空间不足时，弹窗移到上方并限制在屏幕范围内。弹窗只显示译文、状态和「打开主界面」「收藏单词」「复制译文」按钮。可以拖动标题移动位置，Esc 或右上角 × 关闭。
+截图后默认在选区下方显示一个简洁弹窗，不弹出主窗口。下方空间不足时，弹窗移到上方并限制在屏幕范围内。弹窗显示渲染后的译文、状态和「打开主界面」「收藏单词」「显示原文」按钮；点击「显示原文」查看本次识别原文及公式，再点击「显示译文」返回。可在阅读区选中文本后复制。可以拖动标题移动位置，Esc 或右上角 × 关闭。
 
 弹窗随译文实际行数增高，短译文不会留大块空白；达到原有最大高度后显示纵向滚动条。主窗口最小化后保留任务栏入口和当前内容；点 × 才隐藏到托盘。选择“退出”才完全关闭程序。
 
@@ -82,7 +90,9 @@ Release 便携包已随包提供 .NET 8 Windows Desktop Runtime。公式阅读�
 
 主界面左右两侧的「阅读」页会将 LaTeX 渲染为分式、上下标及独立公式，并保留识别文本的段落结构。「编辑原文」可校正识别结果，「文本」可查看译文源码；阅读页也可选词收藏。「原始截图」保留本次截图以核对原有字体和精确排版。译文按窗口宽度重排，不是逐像素复刻原图；清空或关闭本次内容后释放截图。
 
-轻量弹窗仍将简单变量显示为 q₁、pₖ、αᵢ，复杂公式保留 LaTeX 写法。「复制译文」和 Obsidian 收藏仍保留原始数学表达式。
+轻量弹窗与主界面共用本地 KaTeX 渲染，原文和译文均支持分式、上下标与独立公式；小面板使用 16px 阅读字号，公式按相同比例显示。新选区会清除上一选区的原文与切换状态；关闭后释放当前内容。Obsidian 收藏继续保留原始数学表达式。缺少 WebView2 时回退为可复制的文本视图。
+
+在小窗原文或译文中选词后点「收藏单词」，收藏窗口会带入所选文字，并沿用本次识别原文作为语境进行已有的自动补全。编辑期间暂时隐藏小窗，关闭收藏窗口后恢复，主窗口保持隐藏。自动补全需要已保存的 API Key，未配置时仍可手动填写。
 
 英文正文使用 Times New Roman；公式使用随程序附带的专用数学字体，保持分式、上下标和符号的标准排版。升级时请复制完整 assets/math 目录。
 
@@ -128,7 +138,7 @@ Release 便携包已随包提供 .NET 8 Windows Desktop Runtime。公式阅读�
 
 必须保留必填的 `word`，支持 1—30 个字段。普通文本按 Markdown 转义，内联 LaTeX 保留。程序提供的 `id`、`date`、`captured_at` 仍可在自定义模板里使用，但精简模板不输出日期。
 
-配置文件为 `Data/settings.json`。单词本路径、模板路径和 Logo 路径保存为绝对路径，移动程序或 Obsidian 仓库后请检查设置。Key 存在当前 Windows 用户的凭据管理器中，名称为 `ReadDock.DeepSeek.ApiKey.v1`；清空 Key 并保存可移除该凭据。
+配置文件为 `Data/settings.json`。单词本路径、模板路径和 Logo 路径保存为绝对路径，移动程序或 Obsidian 仓库后请检查设置。Key 存在当前 Windows 用户的凭据管理器中，名称为 `ReadDock.DeepSeek.ApiKey.v1`；设置中留空保存会保留该凭据。
 
 主界面左侧“最近翻译”默认保留最近 100 次已完成翻译的原文和译文。选中记录后点“打开记录”或双击即可查看；截图和后续追问不写入历史。历史在 Data/reading-history.dat 中由当前 Windows 账户加密保存，不创建聊天客户端会话。
 

@@ -1,6 +1,6 @@
 # 项目状态
 
-更新日期：2026-10-31。工作区版本：**0.3.4（未提交）**；已提交源码版本：0.3.3。
+更新日期：2026-11-02。工作区版本：**0.3.7 已完成本地验收（未提交）**。小窗收藏遮挡及选词传递已修复，发布脚本、CI/Release 工作流与开源文件已补齐。编译、完整验证、源码/密钥扫描、解压包检查和鼠标目视检查通过。便携包为 dist/WordsCat-0.3.7-win-x64.zip，旧版本保留。未提交、推送或发布到 GitHub；工作流仅做本地静态检查。用户已重建 Git 仓库，当前基线为 d260c6d（Initial public release）；下文旧仓库提交记录仅作历史参考。
 
 ## 用户与使用环境
 
@@ -22,7 +22,7 @@
 
 ## 技术方案与关键选择
 
-原生 C# / .NET 8 WinForms。0.2.1 加入微软 WebView2 SDK 1.0.3595.46 和随包 KaTeX 0.16.22，用本地阅读视图渲染公式；不改变原生程序技术栈。运行依赖 Edge WebView2 Runtime，缺失时回退文本页。Windows OCR 通过随程序附带的 `ocr.ps1` 调用 WinRT。当前电脑只有中文 OCR 模型，对数学斜体和下标不可靠；数学文献默认采用 DeepSeek 视觉，直接发送框选图片。
+原生 C# / .NET 10（LTS）WinForms，目标 net10.0-windows；SDK 10.0.403 构建及 .NET 10.0.14 实际窗口回归通过。0.2.1 加入微软 WebView2 SDK 1.0.3595.46 和随包 KaTeX 0.16.22，用本地阅读视图渲染公式；不改变原生程序技术栈。运行依赖 Edge WebView2 Runtime，缺失时回退文本页。Windows OCR 通过随程序附带的 `ocr.ps1` 调用 WinRT。当前电脑只有中文 OCR 模型，对数学斜体和下标不可靠；数学文献默认采用 DeepSeek 视觉，直接发送框选图片。
 
 默认官方接口地址 `https://api.deepseek.com`；文本和视觉模型可配置，发布时默认 `deepseek-flash`。不要依据旧常识擅自切换模型；调整接入前核对当时官方接口。
 
@@ -50,7 +50,61 @@ API Key 在 Windows 凭据管理器 `ReadDock.DeepSeek.ApiKey.v1` 中。每次�
 
 ## 下一步
 
-当前只处理用户要求的 API 密钥安全。此前 0.3.4 便携发布工作保留为未提交改动，不继续上传或发布；本轮禁止联网、读取真实凭据、改动 Data，以及 commit/push/历史改写。安全验证结果见下文；历史中的旧密钥由用户手动处理。
+本轮本地任务已完成，publish/ 为 0.3.7 开发构建，直接使用的自包含 ZIP 位于 dist/WordsCat-0.3.7-win-x64.zip。源代码与工作流仍未提交；以后仅在用户授权后提交/推送/tag/发布。发布前由仓库管理员开启 GitHub 私密漏洞报告，并在首次服务器运行时检查 CI/Release 结果；本地静态检查无法验证服务器权限或托管运行器。实际服务兼容性、识别质量与签名不在本轮范围，既有混合 DPI/多屏等边界保持不变。
+
+## 2026-11-02 0.3.7 小窗收藏与开源发布准备：完成验收
+
+- 小窗现在读取自己的渲染/文本选词，并沿用本次识别原文作为已有词条补全语境，不再误读主窗口的选词。收藏编辑期间暂时隐藏置顶小窗，编辑窗口继承置顶状态；保存/取消后恢复同一个小窗，主窗口保持隐藏。未新增翻译功能或修改凭据来源。
+- 新增 PopupWordSelfTests 实际 STA 回归，覆盖原文/译文选词、主窗口旧选词干扰、本地模拟自动补全、窗口所有者及层级、保存与取消、小窗恢复和新选区清理。测试使用固定假凭据、假凭据库和本地 HTTP handler，不读取真实 Key。
+- 2026-11-01 build.ps1 -Offline 无警告，verify.ps1 -IncludeUi 全部通过，报告 .test-results/6eb0ea29b3ca4150a0c1f6da8f3b9104/。最终 ZIP 解压后的非 UI 和完整实际窗口验证通过，报告 .test-results/portable-0.3.7-169d6e66e7a242ce8f30b40c4fd9eb2f/。check-source.ps1 检查 147 个源码文件通过，并执行覆盖新 ZIP、二进制、忽略产物及 index 的 check-secrets，零命中。
+- 2026-11-02 Computer Use 用最终包组件及隔离临时工具实际双击选中 robust、点击收藏，确认单词/原形/本地模拟释义/原句已填入，收藏窗口完整显示、小窗未遮挡；取消后原小窗恢复。临时工具只为定位窗口增加任务栏入口，产品任务栏行为未改，真实层级仍由实际窗口回归覆盖。目视测试窗口已关闭。
+- 新增 scripts/publish-release.ps1 入口并复用现有自包含 win-x64 打包器；dist/ 已有忽略规则，不重复添加。RequireClean 在脏工作区拒绝打包的负向检查通过。包内要求 Apache LICENSE/NOTICE、SECURITY.md、KaTeX/WebView2 与实际运行时包中的许可/声明；运行时法律文件逐字节核对通过。
+- 新增 .github/workflows/ci.yml（Windows/.NET 10 构建、无 UI verify、密钥/源码检查）和 release.yml（v* tag、版本一致、干净源码、自包含打包、解压验证、Release ZIP/SHA256 附件）。已静态复核触发、权限和环境变量引用，PowerShell 解析器接受脚本及四个内嵌发布段。未运行托管工作流或访问远端发布接口。
+- README 已拆分用户安装和开发构建，补充未签名 SmartScreen 与 SHA256 核验；新增 SECURITY、CONTRIBUTING、issue/PR 模板。用户确认 Apache-2.0，署名 2026 gaomy199；第三方声明同步随包 .NET 和本地公式资源。
+- dist/WordsCat-0.3.7-win-x64.zip 为 53,316,272 字节、357 文件，随包 .NET Core/Windows Desktop 10.0.14。SHA-256：ffa6e90d5281aa7284db21047c1afb378747d2a3c156fed51e67cc0c3fb068f0。2026-11-02 再次核对归档校验值一致；sourceDirty 为 true，不是已发布版本。
+- 未提交/推送/tag、未读取真实凭据、请求模型服务或改动用户 Data；旧 fixture 精确字节及 Git index 保持。完整证据与外部后续事项见 docs/VALIDATION-v0.3.7.md。
+- 2026-11-02 文档收尾后再次运行 check-source.ps1，147 个源码文件及全工作区/index 密钥扫描通过，零命中；记录 .test-results/source-check-v0.3.7.txt。所有本地验收完成，无待修代码问题。
+
+## 2026-11-01 0.3.6 设置与首次引导：完成验收
+
+- 修复原生 ComboBox 缓存旧语言文字：重新生成选项显示字符串，刷新期间保护预设/主题/语言事件，避免递归、重置服务和清空草稿。实际窗口回归新增双向语言切换及地址/模型/未保存密钥保留断言。
+- build.ps1 -Offline 成功，无编译警告；verify.ps1 -IncludeUi 通过，完整报告 .test-results/1f81c32a7de24a39b150fb4d8d3b9b86/。verify 前置 check-secrets 对工作区/暂存内容扫描零命中。补强草稿断言后再次构建，新 ZIP 解压后的非 UI 和完整实际窗口回归均通过，报告 .test-results/portable-0.3.6-253dd5cc8d644835bac225d8ee9cba52/。
+- scripts/check-source.ps1 通过，检查 134 个源码文件，并调用 check-secrets 再次扫描全工作区/index（含新的 ZIP、二进制及忽略目录），零命中。所有自动测试只用固定假密钥、注入的假凭据库和本地 HTTP handler。
+- Computer Use 检查实际解压包的中文 DeepSeek/英文自定义服务设置、双语非模态引导、空白受保护的 Key 框和离线连接提示；均使用新建临时配置，不读取真实凭据。预览已关闭。语言即时刷新与带假密钥的保存/取消行为由实际 STA 回归覆盖。
+- 同步 README、双语用户指南、开发/需求/发布说明和变更记录，移除临时未验收提示；明确留空保留密钥、保存后测试、结果分类和模型视觉能力边界。
+- 便携包 dist/WordsCat-0.3.6-win-x64.zip：53,290,006 字节，351 文件，随包 .NET Core/Windows Desktop 10.0.14。SHA-256：225b926d261685e16b321a9cc65f003d26980494f48c8005176ffc35d824314c。空 DOTNET_ROOT 下解压程序自测通过，宿主跟踪确认加载包内 coreclr.dll。包来自未提交工作区，sourceDirty 为 true，未上传。
+- 未读取真实 Key、请求模型服务、改动用户 Data、暂存区或 Git 历史；旧 fixture 精确字节保持。当前无本轮遗留项；完整证据见 docs/VALIDATION-v0.3.6.md。
+
+## 2026-10-31 0.3.6 设置与首次引导：当时保存的进度（现已完成）
+
+- 已实现设置页模型服务分区、DeepSeek/自定义 OpenAI 兼容预设、Base URL/模型/API Key 字段。Key 始终掩码、初始留空；留空保存不覆盖已保存值，取消清除草稿。DeepSeek 预设应用原默认值，自定义草稿在切换中保留。
+- 已引入 ICredentialVault 测试隔离及生产 Windows 凭据实现。设置页/启动仅检查存在性和来源元数据，不解码 Key；实际测试或翻译才读取已保存 Key。ReadDock.DeepSeek.ApiKey.v1 不变，旧备注兼容，新密钥备注绑定 HTTPS origin，避免切换服务时沿用另一来源的密钥；无文件/环境密钥回退。维护和测试未调用真实凭据接口。
+- ConnectionTester 使用单条固定 Reply OK.、max_tokens 8、最多 15 秒、零重试；按类型/HTTP 状态分类未配置、401、402/429、网络/超时、格式异常等，不回显响应体或异常。新输入 Key 或未保存的新地址须先保存，再测试保存的凭据；测试时禁用相关输入。
+- ServiceSetupGuide 是可关闭的非模态引导，链接设置、允许稍后使用文本视图，并持久化 service_guide_seen。model_provider 对旧设置按原 Base URL 推断，不新增翻译功能。本地 OCR 保持原路径。
+- 最新 build.ps1 -Offline 成功，无编译警告。最新隔离非 UI 自测通过，报告 .test-results/service-setup-trial-0d2dd9ac901b482e8a9807de5156f8eb/test-results.txt。最新 UI 试跑失败：Service setup regression: provider preset localizes immediately；报告同目录 ui/ui-test-failure.txt。更早的试跑 a7a11e2872074ce9a8ab2b09bc4b5b3a 在加入此即时切换断言前通过，不能代替最终验收。
+- 当时待修复：设置中切换语言后，自定义预设 ComboBox 的显示文字未立即变成英文。该问题已在 2026-11-01 修复，回归覆盖原生显示缓存及草稿保留。
+- 当时保存的验收和打包待办已在 2026-11-01 完成，详见上方完成记录。此历史段落保留早期试跑证据，不代表当前未完成项。仍未 commit/push 或发布。
+
+## 2026-10-31 0.3.5 小面板与模型服务
+
+- 小面板「复制译文」改为「显示原文 / 显示译文」，复用主界面本地 KaTeX、CSP、textContent 与公式字体；不增加页签、不改变原操作栏样式。按渲染高度收缩，保留原 330 逻辑像素上限及滚动。视觉结果传入本次识别原文，文本翻译传入本次原文；加载、错误及关闭释放切换缓冲。缺少 WebView2 仍可使用文本回退。
+- 用户目视反馈字体偏大，小面板阅读字号由 18px 调为 16px，公式按比例缩小；主阅读器字号仍沿用原值。增加实际 DOM 字号回归，并在最终验收中验证。
+- 引入 ITextModelClient、IImageModelClient 与 IModelService；OpenAiCompatibleClient 实现 chat completions。业务窗口依赖接口，配置通过 ModelRequestOptions 传入 BaseUrl、Model、总超时及重试次数。原默认 https://api.deepseek.com、deepseek-flash、thinking disabled 与原图精度参数保留在默认兼容预设；通用端点不携带 DeepSeek 扩展。
+- 旧 base_url/model/vision_model、ReadDock.DeepSeek.ApiKey.v1、命名空间、笔记与历史格式不变；新增 request_timeout_seconds 默认 100、max_retries 默认 0。默认不自动重试；显式启用时只重试 429/5xx/传输故障，总截止时间覆盖退避；401 和非 JSON 不重试。没有配置文件/环境密钥回退，本地 Windows OCR 路径不变。
+- 已用固定假值及本地 HTTP handler 覆盖新旧配置往返、凭据目标常量、通用/默认请求、图片能力、401/429、重试边界、超时/取消与非 JSON；新小窗实际 STA 回归覆盖原文/译文公式、字体、惰性 HTML、滚动、新选区和错误重置。串行试跑报告 .test-results/model-popup-trial-d99b835c228f48bea3c7aa0264391086/ 通过。最终验收与目视检查见 docs/VALIDATION-v0.3.5.md。
+- 最终 build.ps1 -Offline 无警告，verify.ps1 -IncludeUi 通过，报告 .test-results/c327184dcf1d4d44bfdd809a7c6b9430/，包含实际 DOM 16px 字号断言及全部旧回归。verify 前置 scripts/check-secrets.ps1 对全工作区/暂存区（含 ZIP 和忽略产物）扫描零命中。Computer Use 对实际新 ZIP 组件目视检查原文/译文按钮、公式与 16px 字号，测试预览已关闭。
+- 最终便携包 dist/WordsCat-0.3.5-win-x64.zip 为 53,276,844 字节，351 文件，随包 .NET 10.0.14；校验值见 dist/SHA256SUMS.txt，实际解压后的程序离线自测通过。包仅本地生成、sourceDirty 为 true，未上传 GitHub。用户 Data、OCR 脚本和旧 fixture 精确字节未改，Git 暂存区未变；不 commit/push，无本轮未完成项。
+
+## 2026-10-31 .NET 10 迁移与验证
+
+- TargetFramework 由 net8.0-windows 改为 net10.0-windows，移除自包含发布固定的 RuntimeFrameworkVersion 8.0.33，交由 .NET 10 SDK 选择对应运行时补丁。应用版本保持 0.3.4，业务逻辑不改。
+- 已检查 build.ps1、verify.ps1、scripts/ 下所有脚本；没有其他 SDK/运行时版本固定值，仓库没有 global.json。README、双语用户指南、开发/发布说明及 AGENTS 同步 .NET 10 SDK 与 Windows Desktop Runtime 要求；历史验证记录不改写。
+- 用户安装 SDK 10.0.403 与 Windows Desktop Runtime 10.0.14 后完成真实编译。首次发现五处 WFO1000 属性序列化错误，按原默认值增加 DefaultValue，并为仅运行时使用的 PreserveOnClose 明确隐藏设计器序列化；DataGridView 按钮标题增加空字符串回退修复 CS8601。均未改变业务逻辑、UI 默认值或兼容标识。
+- build.ps1 成功，无编译警告。NuGet 仅 WebView2 1.0.3595.46，保留原版本并通过真实公式/字体验证，不做无关升级。
+- verify.ps1 -IncludeUi 在正常桌面权限下全部通过，最终报告 .test-results/4195722ba080404aab7d4f74ebde9c5a/。受限环境首轮 WebView2 停在 initializing，失败报告 .test-results/015152e39e314dc5a094750261a08698/ 保留，未用模拟输出代替。
+- scripts/check-source.ps1 通过，检查 124 个源码文件；包含全工作区/暂存区密钥守卫，零命中。移除 README、双语指南、开发/发布说明和变更记录中的临时未验证提示。详见 docs/VALIDATION-v0.3.4.md。
+- 已重新生成 dist/WordsCat-0.3.4-win-x64.zip（53,268,461 字节，351 个文件），随包 .NET Core 与 Windows Desktop 均为 10.0.14；SHA-256 见 dist/SHA256SUMS.txt。实际解压至 .test-results/net10-portable-29762061ffe94a1180d04ff98ad8a456/，离线自测与实际窗口回归均通过，空 DOTNET_ROOT 启动跟踪确认使用包内 CoreCLR，解压目录密钥扫描零命中。Computer Use 目视检查双栏公式、主界面和设置页，测试预览已关闭。此包仅本地生成，sourceDirty 为 true，未上传 GitHub。
+- 未读取真实密钥、调用模型服务、改动用户 Data 或 Git 暂存区/历史，不 commit/push。原有混合 DPI、多屏、真实翻译质量与签名/安装程序等边界不变。
 
 ## 2026-10-31 API 密钥安全专项
 

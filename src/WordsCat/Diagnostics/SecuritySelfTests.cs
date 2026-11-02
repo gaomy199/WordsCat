@@ -55,7 +55,7 @@ internal static class SecuritySelfTests
         finally { AppPaths.DataDirectory = previousDirectory; }
 
         using var handler = new SensitiveMockHandler();
-        using var client = new DeepSeekClient(handler);
+        using var client = new OpenAiCompatibleClient(handler);
         var config = new AppConfig();
         var messages = new[] { new ChatMessage("user", "synthetic input") };
         var result = await client.CompleteAsync(config, FakeCredential, messages, false, CancellationToken.None);

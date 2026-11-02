@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Drawing.Drawing2D;
 
 namespace ReadDock;
@@ -6,6 +7,9 @@ namespace ReadDock;
 // app palette. Windows' flat combo border/arrow otherwise stay white in dark mode.
 internal sealed class SoftComboBox : ComboBox
 {
+    // Rebuild native item strings after localization; repaint alone retains cached text.
+    internal void RefreshLocalizedItems() => RefreshItems();
+
     protected override void WndProc(ref Message m)
     {
         base.WndProc(ref m);
@@ -25,7 +29,9 @@ internal sealed class SoftComboBox : ComboBox
 
 internal class RoundedPanel : Panel
 {
+    [DefaultValue(true)]
     public bool Outline { get; set; } = true;
+    [DefaultValue(12)]
     public int Radius { get; set; } = 12;
     public RoundedPanel()
     {

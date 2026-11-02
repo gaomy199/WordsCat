@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace ReadDock;
 
 internal static class Ui
@@ -182,7 +184,9 @@ internal static class Ui
     // WinForms' disabled button renderer can retain a light-theme text shadow.
     sealed class ThemeButton : Button
     {
+        [DefaultValue("")]
         public string Glyph { get; set; } = "";
+        [DefaultValue(false)]
         public bool IconOnly { get; set; }
         bool hover, pressed;
         public ThemeButton() => SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);

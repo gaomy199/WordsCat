@@ -43,7 +43,7 @@ internal static class UiText
             foreach (DataGridViewColumn col in grid.Columns)
             {
                 col.HeaderText = T(columnCaptions.GetValue(col, c => new Caption { Original = c.HeaderText }).Original);
-                if (col is DataGridViewButtonColumn button) button.Text = T(columnButtons.GetValue(button, c => new Caption { Original = c.Text }).Original);
+                if (col is DataGridViewButtonColumn button) button.Text = T(columnButtons.GetValue(button, c => new Caption { Original = c.Text ?? "" }).Original);
             }
         foreach (Control child in control.Controls) Apply(child);
         control.Invalidate();
@@ -63,6 +63,33 @@ internal static class UiText
 
     static readonly Dictionary<string, string> English = new()
     {
+        ["模型服务"] = "Model service", ["服务预设"] = "Service preset", ["模型名"] = "Model name",
+        ["自定义 OpenAI 兼容"] = "Custom OpenAI-compatible",
+        ["测试连接"] = "Test connection", ["视觉模型（留空时使用文本模型）"] = "Vision model (leave blank to use the text model)",
+        ["模型视觉 · 数学与扫描文献"] = "Model vision · Math and scanned papers",
+        ["已保存密钥；留空保留，输入新密钥替换。"] = "Key saved. Leave blank to keep it, or enter a replacement.",
+        ["粘贴此服务的 API Key。"] = "Paste the API key for this service.",
+        ["密钥只保存到 Windows 凭据管理器，留空保留已保存密钥。\n输入新密钥后请先保存设置，再测试连接。"] = "Keys are stored only in Windows Credential Manager. Leave blank to keep the saved key.\nSave settings after entering a new key, then test the connection.",
+        ["视觉模式发送当前截图；本地模式先使用 Windows OCR。测试连接只验证文本服务。"] = "Vision sends the current capture; local mode uses Windows OCR first. Connection testing checks text service only.",
+        ["正在测试连接，仅发送简短测试请求…"] = "Testing connection with a short request…",
+        ["连接成功。文本服务已响应；此测试不验证视觉识别。"] = "Connected. The text service responded; this test does not verify vision.",
+        ["尚未配置此服务的 API Key。请填写密钥并保存设置。"] = "No API key is configured for this service. Enter a key and save settings.",
+        ["请先保存新密钥或服务地址，再测试已保存的凭据。"] = "Save the new key or service address before testing the saved credentials.",
+        ["401：API Key 无效或已失效，请更新密钥。"] = "401: The API key is invalid or expired. Update the key.",
+        ["402/429：额度不足或请求过于频繁，请检查服务商额度后重试。"] = "402/429: Insufficient quota or rate limit. Check your provider quota and try again later.",
+        ["网络连接失败或请求超时，请检查网络和 Base URL。"] = "Network connection failed or timed out. Check the network and Base URL.",
+        ["返回格式异常，接口可能不兼容 OpenAI chat completions。"] = "Unexpected response format. The endpoint may not support OpenAI chat completions.",
+        ["请填写有效的 HTTPS Base URL 和模型名。"] = "Enter a valid HTTPS Base URL and model name.",
+        ["连接测试已取消。"] = "Connection test cancelled.",
+        ["离线预览不读取密钥，也不请求真实服务。"] = "Offline preview does not read keys or contact real services.",
+        ["服务暂时不可用，请检查服务地址或稍后重试。"] = "Service unavailable. Check the service address or try again later.",
+        ["API Key 格式无效，请重新粘贴完整密钥。"] = "Invalid API key format. Paste the complete key again.",
+        ["更换服务地址时，请输入并保存对应服务的新密钥。"] = "When changing service address, enter and save the key for the new service.",
+        ["设置模型服务"] = "Set up model service", ["先设置一个模型服务"] = "Set up a model service",
+        ["尚未配置 API Key。可前往设置选择服务并保存密钥。\n你也可以稍后设置，继续使用文本视图。"] = "No API key is configured. Open Settings to choose a service and save a key.\nYou can also set it up later and keep using the text view.",
+        ["打开设置"] = "Open settings", ["稍后设置"] = "Set up later",
+        ["无法检查已保存密钥，请在设置中检查模型服务。"] = "Could not check the saved key. Check the model service in Settings.",
+        ["显示原文"] = "Show source", ["显示译文"] = "Show translation",
         ["单词猫 WordsCat · 中英阅读助手"] = "WordsCat · Chinese / English reading",
         ["单词猫  /  WordsCat"] = "WordsCat  /  单词猫",
         ["中英互译"] = "Chinese / English translation", ["单词猫"] = "WordsCat", ["WordsCat"] = "单词猫",

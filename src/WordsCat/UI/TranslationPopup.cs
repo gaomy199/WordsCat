@@ -1,4 +1,5 @@
-using System.Text.RegularExpressions;
+using System.ComponentModel;
+using System.Text.Json;
 
 namespace ReadDock;
 
@@ -15,37 +16,27 @@ internal static class PopupPlacement
     }
 }
 
-internal static class MathDisplay
-{
-    private const string NormalSub = "0123456789+-=()aehijklmnoprstuvx";
-    private const string Subscripts = "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₕᵢⱼₖₗₘₙₒₚᵣₛₜᵤᵥₓ";
-    public static string ForReading(string text) => Regex.Replace(text, @"(?<!\\)\$([^$\n]+)\$", m =>
-    {
-        string math = m.Groups[1].Value;
-        math = Regex.Replace(math, @"\\(alpha|beta|gamma|delta|epsilon|theta|lambda|mu|nu|pi|rho|sigma|tau|phi|psi|omega|Delta|Sigma|Omega)(?![A-Za-z])", x =>
-            new Dictionary<string, string> { ["alpha"] = "α", ["beta"] = "β", ["gamma"] = "γ", ["delta"] = "δ", ["epsilon"] = "ε", ["theta"] = "θ", ["lambda"] = "λ", ["mu"] = "μ", ["nu"] = "ν", ["pi"] = "π", ["rho"] = "ρ", ["sigma"] = "σ", ["tau"] = "τ", ["phi"] = "φ", ["psi"] = "ψ", ["omega"] = "ω", ["Delta"] = "Δ", ["Sigma"] = "Σ", ["Omega"] = "Ω" }[x.Groups[1].Value]);
-        math = math.Replace(@"\ldots", "…").Replace(@"\cdots", "⋯").Replace(@"\times", "×").Replace(@"\leq", "≤").Replace(@"\geq", "≥");
-        math = Regex.Replace(math, @"_(?:\{([0-9a-z+\-=()]+)\}|([0-9a-z]))", s =>
-        {
-            var value = s.Groups[1].Success ? s.Groups[1].Value : s.Groups[2].Value;
-            return value.All(c => NormalSub.Contains(c)) ? new string(value.Select(c => Subscripts[NormalSub.IndexOf(c)]).ToArray()) : s.Value;
-        });
-        return math.Contains('\\') || math.Contains('{') || math.Contains('^') ? "$" + math + "$" : math;
-    });
-}
-
 internal sealed class TranslationPopup : Form
 {
     private readonly Label heading;
     private readonly Label status = Ui.Label("", false, 9);
     private readonly RichTextBox content = new();
-    private readonly Button copy;
+    private readonly MathReadingView reading;
+    private readonly Button toggle;
     private readonly Button collect;
     private readonly Action closeAction;
     private readonly TableLayoutPanel root;
     private bool fitting;
     private Rectangle? anchor;
-    private string rawText = "";
+    private string translatedText = "", originalText = "";
+    private bool showingOriginal;
+    private int? renderedHeight;
+    private int revision;
+    internal bool ShowingOriginal => showingOriginal;
+    internal string SelectedText => reading.SelectedText.Length > 0 ? reading.SelectedText : content.SelectedText;
+    internal Task<string> InspectReadingAsync(string script) => reading.InspectAsync(script);
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public bool PreserveOnClose { get; set; }
     public TranslationPopup(string notebook, Action openMain, Action collectWord, Action closeAction)
     {
@@ -63,14 +54,18 @@ internal sealed class TranslationPopup : Form
         heading.MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) Native.DragWindow(Handle); };
         root.Controls.Add(header, 0, 0);
         content.Dock = DockStyle.Fill; content.BorderStyle = BorderStyle.None; content.ReadOnly = true; content.DetectUrls = false; content.Font = Ui.Font(12); content.Margin = new Padding(0, 8, 0, 4);
-        content.AccessibleName = "轻量译文"; root.Controls.Add(content, 0, 1);
+        content.AccessibleName = "轻量阅读";
+        reading = new MathReadingView(content, false, true) { Margin = content.Margin };
+        root.Controls.Add(reading, 0, 1);
+        reading.Rendered += async () => await MeasureRenderedAsync();
         content.WordWrap = true; content.ScrollBars = RichTextBoxScrollBars.Vertical;
         root.Controls.Add(status, 0, 2);
         collect = Ui.Button("收藏单词", collectWord, false, 105);
-        copy = Ui.Button("复制译文", () => { try { if (rawText.Length > 0) Clipboard.SetText(rawText); } catch (Exception ex) { Ui.Error(this, ex); } }, false, 100);
-        root.Controls.Add(Ui.Row(Ui.Button("打开主界面", openMain, true, 132), collect, copy), 0, 3);
+        toggle = Ui.Button("显示原文", ToggleOriginal, false, 100);
+        toggle.Name = "popupOriginalToggle";
+        root.Controls.Add(Ui.Row(Ui.Button("打开主界面", openMain, true, 132), collect, toggle), 0, 3);
         Controls.Add(root); Ui.FinishLayout(this);
-        FormClosed += (_, _) => { if (!PreserveOnClose) closeAction(); rawText = ""; content.Clear(); };
+        FormClosed += (_, _) => { if (!PreserveOnClose) closeAction(); translatedText = originalText = ""; revision++; content.Clear(); };
         KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape) { e.Handled = true; Close(); } };
         Shown += (_, _) => FitContent();
         DpiChanged += (_, _) => FitContent();
@@ -83,13 +78,42 @@ internal sealed class TranslationPopup : Form
     }
     public void SetLoading(string message)
     {
-        rawText = ""; content.Text = UiText.T(message); status.Text = "仅处理本次选区"; copy.Enabled = collect.Enabled = false;
+        translatedText = originalText = ""; showingOriginal = false; toggle.Text = "显示原文";
+        SetReadingText(UiText.T(message)); status.Text = "仅处理本次选区"; toggle.Enabled = collect.Enabled = false;
         FitContent();
     }
-    public void SetResult(string text, string detail)
+    public void SetResult(string text, string detail, string original = "")
     {
-        text = SecretRedactor.Redact(text); rawText = text; content.Text = MathDisplay.ForReading(text); status.Text = SecretRedactor.Redact(UiText.T(detail)); status.ForeColor = Ui.Muted; copy.Enabled = collect.Enabled = text.Length > 0;
+        translatedText = SecretRedactor.Redact(text); originalText = SecretRedactor.Redact(original);
+        showingOriginal = false; toggle.Text = "显示原文"; SetReadingText(translatedText);
+        status.Text = SecretRedactor.Redact(UiText.T(detail)); status.ForeColor = Ui.Muted;
+        toggle.Enabled = originalText.Length > 0; collect.Enabled = translatedText.Length > 0;
         FitContent();
+    }
+    void ToggleOriginal()
+    {
+        if (originalText.Length == 0) return;
+        showingOriginal = !showingOriginal;
+        toggle.Text = showingOriginal ? "显示译文" : "显示原文";
+        SetReadingText(showingOriginal ? originalText : translatedText);
+        FitContent();
+    }
+    void SetReadingText(string text) { revision++; renderedHeight = null; content.Text = text; reading.RefreshContent(); }
+    async Task MeasureRenderedAsync()
+    {
+        int current = revision;
+        try
+        {
+            // Allow the bundled math font to settle before measuring the rendered document.
+            await Task.Delay(120);
+            if (IsDisposed || current != revision) return;
+            string value = await reading.InspectAsync("Math.ceil(document.getElementById('content').getBoundingClientRect().height + 24)");
+            if (IsDisposed || current != revision) return;
+            using var doc = JsonDocument.Parse(value);
+            if (doc.RootElement.TryGetInt32(out int height))
+            { renderedHeight = Math.Max(32, height) * DeviceDpi / 96; FitContent(); }
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or ObjectDisposedException or System.Runtime.InteropServices.COMException) { }
     }
     public void UpdateStatus(string detail, bool error)
     {
@@ -98,7 +122,8 @@ internal sealed class TranslationPopup : Form
     }
     public void SetError(string message)
     {
-        content.Text = SecretRedactor.Redact(UiText.T(message)); status.Text = "可打开主界面修改原文或检查设置。"; copy.Enabled = collect.Enabled = false;
+        translatedText = originalText = ""; showingOriginal = false; toggle.Text = "显示原文";
+        SetReadingText(SecretRedactor.Redact(UiText.T(message))); status.Text = "可打开主界面修改原文或检查设置。"; toggle.Enabled = collect.Enabled = false;
         FitContent();
     }
     void FitContent()
@@ -111,7 +136,7 @@ internal sealed class TranslationPopup : Form
             float scale = DeviceDpi / 96f;
             int width = Math.Max(80, ClientSize.Width - root.Padding.Horizontal - content.Margin.Horizontal - (int)(20 * scale));
             var flags = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.NoPadding;
-            int textHeight = TextRenderer.MeasureText(content.Text.Length == 0 ? " " : content.Text, content.Font, new Size(width, int.MaxValue), flags).Height + (int)(12 * scale);
+            int textHeight = renderedHeight ?? (TextRenderer.MeasureText(content.Text.Length == 0 ? " " : content.Text, content.Font, new Size(width, int.MaxValue), flags).Height + (int)(12 * scale));
             int statusHeight = Math.Clamp(TextRenderer.MeasureText(status.Text, status.Font, new Size(width, int.MaxValue), flags).Height + (int)(6 * scale), (int)(24 * scale), (int)(56 * scale));
             root.RowStyles[2].Height = statusHeight;
             int fixedHeight = root.Padding.Vertical + Padding.Vertical + (int)root.RowStyles[0].Height + (int)root.RowStyles[3].Height + statusHeight + content.Margin.Vertical;
