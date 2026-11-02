@@ -1,5 +1,9 @@
 # 版本记录
 
+## Unreleased
+
+- Refresh the public README with download/setup steps, keyboard shortcuts, developer checks, output-directory guidance and license links. Move temporary working-tree/publication status into project records; keep the English entry documentation and prominent Chinese guide link. Documentation only; application version remains 0.3.7.
+
 ## 0.3.7 · 2026-11-02 · Uncommitted
 
 - Pass the popup's rendered/raw selection to the existing vocabulary editor and automatic enrichment, preserving the current recognized source as context. Hide the topmost popup while its modal editor is open, restore it after save/cancel, and keep the main window hidden. Add actual-window/local-mock regression coverage.
