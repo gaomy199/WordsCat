@@ -309,7 +309,7 @@ internal sealed class MainWindow : Form
         SetStatus("译文已放入左侧，已自动识别语言，可重新翻译。");
     }
     void AddMenu(string text, Action action) => menu.Items.Add(text, null, (_, _) => { if (!busy && !dialogOpen) action(); else SetStatus("请先完成或取消当前操作。"); });
-    void UpdateBadge() => modelBadge.Text = (config.ModelProvider == "custom" ? UiText.T("自定义 OpenAI 兼容") : "DeepSeek") + "  ·  " + config.Model + "  ·  v0.3.7";
+    void UpdateBadge() => modelBadge.Text = (config.ModelProvider == "custom" ? UiText.T("自定义 OpenAI 兼容") : "DeepSeek") + "  ·  " + config.Model + "  ·  v" + Application.ProductVersion.Split('+')[0];
     void SetStatus(string text, bool error = false) { text = SecretRedactor.Redact(UiText.T(text)); status.Text = text; status.ForeColor = error ? Color.FromArgb(196, 110, 56) : Ui.Muted; if (popup is { IsDisposed: false }) popup.UpdateStatus(text, error); }
     void SetBusy(bool value)
     {

@@ -4,6 +4,12 @@
 
 - Refresh the public README with download/setup steps, keyboard shortcuts, developer checks, output-directory guidance and license links. Move temporary working-tree/publication status into project records; keep the English entry documentation and prominent Chinese guide link. Documentation only; application version remains 0.3.7.
 
+## 0.3.8 · 2026-11-02 · Uncommitted
+
+- Add four native slide switches for broader common senses (on by default), IPA, AI examples with translations, and collocations (off by default). Keep contextual meaning and verified source sentences separate from supplementary content; review and save all enabled fields through deterministic Markdown code. Preserve custom template files and existing notes.
+- Store in-app notebook/template/logo paths relative to the settings directory, resolve independently of the working directory, and recover missing legacy Data paths when the corresponding local file exists. Keep external vault paths absolute and missing custom templates visible as errors.
+- Offline build, full normal-desktop verification, source/secret checks and Computer Use settings inspection pass. Validation details: docs/VALIDATION-v0.3.8.md. Local work only; no commit, upload, production credential access or model-service calls.
+
 ## 0.3.7 · 2026-11-02 · Uncommitted
 
 - Pass the popup's rendered/raw selection to the existing vocabulary editor and automatic enrichment, preserving the current recognized source as context. Hide the topmost popup while its modal editor is open, restore it after save/cancel, and keep the main window hidden. Add actual-window/local-mock regression coverage.

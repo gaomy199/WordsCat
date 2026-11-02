@@ -1,14 +1,14 @@
-# 单词猫 WordsCat 0.3.7 · Windows 11
+# 单词猫 WordsCat 0.3.8 · Windows 11
 
-中英互译与 Obsidian 生词收藏。主窗口右上角显示 `v0.3.7`。
+中英互译与 Obsidian 生词收藏。主窗口右上角显示 `v0.3.8`。
 
 ## 下载即用
 
-前往 [GitHub Releases](https://github.com/gaomy199/WordsCat/releases/latest)，下载 `WordsCat-0.3.7-win-x64.zip`，完整解压后双击 `WordsCat/WordsCat.exe`。自包含便携包不需要下载源码仓库或自行构建，已包含 .NET 10 Windows Desktop Runtime。GitHub 自动附带的 Source code 压缩包是源码，请选择带有 win-x64 名称的程序压缩包。
+前往 [GitHub Releases](https://github.com/gaomy199/WordsCat/releases)，选择对应版本的 `WordsCat-VERSION-win-x64.zip`，完整解压后双击 `WordsCat/WordsCat.exe`。自包含便携包不需要下载源码仓库或自行构建，已包含 .NET 10 Windows Desktop Runtime。GitHub 自动附带的 Source code 压缩包是源码，请选择带有 win-x64 名称的程序压缩包。
 
-本地打包后的直接可用压缩包位于项目根目录下的 `dist/WordsCat-0.3.7-win-x64.zip`，校验文件为 `dist/SHA256SUMS.txt`。默认 `publish/` 是依赖本机 .NET 10 运行时的开发构建目录；生成本地压缩包不会自动上传 GitHub。
+本地打包后的直接可用压缩包位于项目根目录下的 `dist/`，校验文件为 `dist/SHA256SUMS.txt`。默认 `publish/` 是依赖本机 .NET 10 运行时的开发构建目录；生成本地压缩包不会自动上传 GitHub。
 
-当前 0.3.7 为本地工作区版本，尚未发布到 GitHub；发布对应版本前请使用本地压缩包。
+当前工作区 0.3.8 可通过 `publish/WordsCat.exe` 运行。本轮没有生成或发布 0.3.8 ZIP；已有本地压缩包保持原版本。远端可用版本以所选 Release 为准。
 
 目前提供 Windows 11 x64 便携版本；首次使用在设置中填写 API Key 和单词本。升级先退出旧版，保留原有 Data 文件夹和 Markdown 笔记。
 
@@ -102,9 +102,9 @@ API Key 输入框掩码显示，每次打开都留空，不回显已保存值。
 
 ## 收藏生词
 
-在主窗口原文中选中单词或词组，点击「收藏所选词」，或者从轻量弹窗点「收藏单词」后手动输入。收藏前可以修改所有字段，并选择目标单词本。
+在主窗口原文中选中单词或词组，点击「收藏所选词」，也可选中轻量弹窗原文或译文中的单词再点「收藏单词」。收藏前可以修改所有字段，并选择目标单词本。
 
-默认卡片只包含：
+基础模板包含以下六个字段；默认另外开启「其他常见词性与释义」补充，可在设置中关闭：
 
 - 单词 / 词组
 - 原形
@@ -159,3 +159,9 @@ API Key 输入框掩码显示，每次打开都留空，不回显已保存值。
 发布前已获授权，将用户提供的一张数学截图发送到 DeepSeek 官方视觉接口实测一次，正确保留了 q₁、q₂、…、qₖ、p₁、p₂、…、pₖ 和 2k。本次输入 488、输出 180 tokens。其他图像质量、字体和公式仍需在阅读时核对，界面预览本身不代表模型识别结果。
 
 官方参考：[DeepSeek 图片输入说明](https://api-docs.deepseek.com/guides/vision/)。
+
+## 收藏内容开关与移动文件夹（0.3.8）
+
+「设置 → 单词本与模板」提供四个左右拨动开关：补充常见词性与词义（默认开启）、音标、AI 例句及译文、常见搭配（后三项默认关闭）。补充义按词性单列，例如 segment 除当前动词义外补充名词义；AI 例句单列，文献原句继续逐字核验。保存前可编辑并查看 Markdown 预览。开关对新收藏生效，不改写已有笔记或模板；自定义模板中原有字段仍保留。
+
+软件目录内的单词本、模板及 Logo 路径按 settings.json 所在目录（通常为 Data）保存为相对路径。剪切或移动时请带上整个软件文件夹与 Data；外部 Obsidian 单词本保留绝对路径。旧版绝对 Data 路径失效后，若当前 Data 中对应文件存在会自动恢复；其他缺失的自定义模板需重新选择。

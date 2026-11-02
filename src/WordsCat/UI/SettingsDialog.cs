@@ -24,6 +24,10 @@ internal sealed class SettingsDialog : Form
     private readonly ComboBox engine = Choices(new("vision", "模型视觉 · 数学与扫描文献"), new("local", "Windows 本地 OCR · 仅上传识别文字"));
     private readonly DataGridView notebooks = new();
     private readonly TextBox template = Ui.TextBox();
+    private readonly SlideSwitch senses = new() { Name = "supplementSenses", Text = "补充常见词性与词义" };
+    private readonly SlideSwitch phonetics = new() { Name = "includePhonetics", Text = "写入音标" };
+    private readonly SlideSwitch examples = new() { Name = "generateExamples", Text = "生成 AI 例句及译文" };
+    private readonly SlideSwitch collocations = new() { Name = "includeCollocations", Text = "补充常见搭配" };
     private readonly TextBox instruction = Ui.TextBox(true);
     private readonly TextBox glossary = Ui.TextBox(true);
     private readonly ComboBox theme = Choices(new("light", "浅色"), new("dark", "深色"), new("system", "跟随系统"));
@@ -69,7 +73,9 @@ internal sealed class SettingsDialog : Form
         baseUrl.Text = config.BaseUrl; model.Text = config.Model; visionModel.Text = config.VisionModel;
         SelectChoice(engine, config.ScreenshotEngine); SelectChoice(theme, config.ThemeMode);
         SelectChoice(language, config.UiLanguage); language.AccessibleName = "uiLanguage";
-        template.Text = config.TemplateFile; instruction.Text = config.TranslationInstruction; glossary.Text = config.Glossary;
+        template.Name = "templatePath"; template.Text = PortablePaths.Store(config.TemplateFile);
+        senses.Checked = config.Vocabulary.SupplementSenses; phonetics.Checked = config.Vocabulary.IncludePhonetics;
+        examples.Checked = config.Vocabulary.GenerateExamples; collocations.Checked = config.Vocabulary.IncludeCollocations; instruction.Text = config.TranslationInstruction; glossary.Text = config.Glossary;
         accent.Text = config.AccentColor; brightness.Value = Math.Clamp(config.BackgroundBrightness, 0, 100);
         logo.Text = config.LogoFile; floating.Checked = config.ShowFloating; startup.Checked = config.ShowOnStartup;
         historyLimit.Value = Math.Clamp(config.HistoryLimit, 0, 1000);
@@ -97,11 +103,14 @@ internal sealed class SettingsDialog : Form
 
         var bp = FormPanel(); book.Controls.Add(bp);
         AddNote(bp, "按领域添加多个 Markdown 文件。主窗口和收藏窗口都可切换；启动时使用默认单词本。", 40);
-        ConfigureNotebookGrid(); AddControl(bp, notebooks, 200);
+        ConfigureNotebookGrid(); AddControl(bp, notebooks, 140);
         AddControl(bp, Ui.Row(Ui.Button("添加单词本", AddNotebook, false, 135), Ui.Button("移除所选项", RemoveNotebook, false, 135)), 44);
+        AddControl(bp, Ui.Label("收藏内容", true, 11), 30);
+        foreach (var toggle in new[] { senses, phonetics, examples, collocations }) AddControl(bp, toggle, 40);
+        AddNote(bp, "开关对新收藏生效；保留语境释义与文献原句，补充内容另列，可在保存前编辑。", 42);
         AddField(bp, "字段与排版模板 JSON", template);
         AddControl(bp, Ui.Row(Ui.Button("选择模板", ChooseTemplate), Ui.Button("编辑模板", EditTemplate), Ui.Button("检查模板", ValidateTemplate), Ui.Button("使用精简模板", ResetTemplate, false, 135)), 44);
-        AddNote(bp, "默认卡片仅保留：单词/词组、原形、词性、语境释义、原句及译文。\n移除单词本只移除配置项，Markdown 文件保留。自定义模板不会自动覆盖。", 62);
+        AddNote(bp, "相对路径以 Data（settings.json 所在目录）为基准，移动软件时请保留整个文件夹。外部单词本保留绝对路径。\n开关不改写模板文件或已有笔记；移除单词本只移除配置项。", 74);
 
         var ep = FormPanel(); appearance.Controls.Add(ep);
         AddField(ep, "界面语言", language);
@@ -185,7 +194,7 @@ internal sealed class SettingsDialog : Form
         notebooks.Columns.Add(new DataGridViewButtonColumn { Name = "Pick", HeaderText = "", Text = "选择文件", UseColumnTextForButtonValue = true, FillWeight = 18 });
         foreach (var n in config.Notebooks)
         {
-            int i = notebooks.Rows.Add(n.Name, n.File, n.Id == config.DefaultNotebookId); notebooks.Rows[i].Tag = n.Id;
+            int i = notebooks.Rows.Add(n.Name, PortablePaths.Store(n.File), n.Id == config.DefaultNotebookId); notebooks.Rows[i].Tag = n.Id;
         }
         notebooks.CurrentCellDirtyStateChanged += (_, _) => { if (notebooks.IsCurrentCellDirty) notebooks.CommitEdit(DataGridViewDataErrorContexts.Commit); };
         notebooks.CellValueChanged += (_, e) =>
@@ -203,7 +212,7 @@ internal sealed class SettingsDialog : Form
         if (notebooks.Rows.Count >= 40) { UiText.Show(this, "最多添加 40 个单词本。", "单词本"); return; }
         int number = 1; var names = notebooks.Rows.Cast<DataGridViewRow>().Select(r => Convert.ToString(r.Cells[0].Value)).ToHashSet();
         while (names.Contains(UiText.T("单词本 ") + number)) number++;
-        int index = notebooks.Rows.Add(UiText.T("单词本 ") + number, Path.Combine(AppPaths.DataDirectory, "vocabulary-" + number + ".md"), notebooks.Rows.Count == 0);
+        int index = notebooks.Rows.Add(UiText.T("单词本 ") + number, "vocabulary-" + number + ".md", notebooks.Rows.Count == 0);
         notebooks.Rows[index].Tag = Guid.NewGuid().ToString("N"); notebooks.CurrentCell = notebooks.Rows[index].Cells[0];
     }
     void RemoveNotebook()
@@ -215,15 +224,15 @@ internal sealed class SettingsDialog : Form
     }
     void BrowseNotebook(int index)
     {
-        string path = Convert.ToString(notebooks.Rows[index].Cells[1].Value) ?? "";
+        string path = PortablePaths.Resolve(Convert.ToString(notebooks.Rows[index].Cells[1].Value) ?? "");
         using var d = new SaveFileDialog { Filter = UiText.T("Markdown 笔记 (*.md)|*.md"), DefaultExt = "md", OverwritePrompt = false, FileName = Path.GetFileName(path), Title = UiText.T("选择或新建单词本（保留已有内容）") };
         if (Directory.Exists(Path.GetDirectoryName(path))) d.InitialDirectory = Path.GetDirectoryName(path);
-        if (d.ShowDialog(this) == DialogResult.OK) notebooks.Rows[index].Cells[1].Value = d.FileName;
+        if (d.ShowDialog(this) == DialogResult.OK) notebooks.Rows[index].Cells[1].Value = PortablePaths.Store(d.FileName);
     }
-    void ChooseTemplate() { using var d = new OpenFileDialog { Filter = UiText.T("JSON 模板 (*.json)|*.json"), CheckFileExists = true }; if (d.ShowDialog(this) == DialogResult.OK) template.Text = d.FileName; }
-    void EditTemplate() { try { var p = new System.Diagnostics.ProcessStartInfo("notepad.exe"); p.ArgumentList.Add(template.Text); System.Diagnostics.Process.Start(p); } catch (Exception ex) { Ui.Error(this, ex); } }
-    void ValidateTemplate() { try { var t = VocabularyTemplate.Load(template.Text.Trim()); UiText.Show(this, UiText.F("模板有效，共 {0} 个字段。\n", t.Fields.Count) + string.Join("、", t.Fields.Select(f => f.Label)), "模板检查"); } catch (Exception ex) { Ui.Error(this, ex); } }
-    void ResetTemplate() { template.Text = AppPaths.DefaultTemplate; UiText.Show(this, "已选择随新版提供的精简模板。点击「保存设置」后生效。你原来的模板文件会保留。", "精简模板"); }
+    void ChooseTemplate() { using var d = new OpenFileDialog { Filter = UiText.T("JSON 模板 (*.json)|*.json"), CheckFileExists = true }; if (d.ShowDialog(this) == DialogResult.OK) template.Text = PortablePaths.Store(d.FileName); }
+    void EditTemplate() { try { var p = new System.Diagnostics.ProcessStartInfo("notepad.exe"); p.ArgumentList.Add(PortablePaths.Resolve(template.Text.Trim())); System.Diagnostics.Process.Start(p); } catch (Exception ex) { Ui.Error(this, ex); } }
+    void ValidateTemplate() { try { var t = VocabularyTemplate.Load(PortablePaths.Resolve(template.Text.Trim())); UiText.Show(this, UiText.F("模板有效，共 {0} 个字段。\n", t.Fields.Count) + string.Join("、", t.Fields.Select(f => f.Label)), "模板检查"); } catch (Exception ex) { Ui.Error(this, ex); } }
+    void ResetTemplate() { template.Text = PortablePaths.Store(AppPaths.DefaultTemplate); UiText.Show(this, "已选择随新版提供的精简模板。点击「保存设置」后生效。你原来的模板文件会保留。", "精简模板"); }
     void ChooseAccent() { try { using var d = new ColorDialog { Color = Ui.ParseAccent(accent.Text.Trim()), FullOpen = true }; if (d.ShowDialog(this) == DialogResult.OK) accent.Text = $"#{d.Color.R:X2}{d.Color.G:X2}{d.Color.B:X2}"; } catch (Exception ex) { Ui.Error(this, ex); } }
     void ChooseLogo()
     {
@@ -263,9 +272,10 @@ internal sealed class SettingsDialog : Form
         var c = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(config, AppConfig.Json), AppConfig.Json)!;
         c.BaseUrl = baseUrl.Text.Trim().TrimEnd('/'); c.Model = model.Text.Trim(); c.VisionModel = string.IsNullOrWhiteSpace(visionModel.Text) ? c.Model : visionModel.Text.Trim(); c.ModelProvider = Value(provider); c.ScreenshotEngine = Value(engine);
         c.ThemeMode = Value(theme); c.AccentColor = accent.Text.Trim(); Ui.ParseAccent(c.AccentColor); c.BackgroundBrightness = brightness.Value; c.LogoFile = logo.Text.Trim();
-        c.TemplateFile = Path.GetFullPath(template.Text.Trim()); VocabularyTemplate.Load(c.TemplateFile);
+        c.TemplateFile = PortablePaths.Resolve(template.Text.Trim()); VocabularyTemplate.Load(c.TemplateFile);
         c.TranslationInstruction = instruction.Text.Trim(); c.Glossary = glossary.Text.Trim(); c.ShowFloating = floating.Checked; c.ShowOnStartup = startup.Checked;
         c.HistoryLimit = (int)historyLimit.Value;
+        c.Vocabulary = new VocabularyOptions { SupplementSenses = senses.Checked, IncludePhonetics = phonetics.Checked, GenerateExamples = examples.Checked, IncludeCollocations = collocations.Checked };
         c.UiLanguage = Value(language);
         notebooks.EndEdit();
         c.Notebooks = []; c.DefaultNotebookId = ""; c.ActiveNotebookId = config.ActiveNotebookId;
@@ -358,7 +368,7 @@ internal sealed class SettingsDialog : Form
             config.Notebooks = c.Notebooks; config.DefaultNotebookId = c.DefaultNotebookId; config.ActiveNotebookId = c.ActiveNotebookId; config.TargetFile = c.TargetFile;
             config.TemplateFile = c.TemplateFile; config.TranslationInstruction = c.TranslationInstruction; config.Glossary = c.Glossary;
             config.ShowFloating = c.ShowFloating; config.ShowOnStartup = c.ShowOnStartup; config.ThemeMode = c.ThemeMode; config.AccentColor = c.AccentColor; config.BackgroundBrightness = c.BackgroundBrightness; config.LogoFile = c.LogoFile;
-            config.HistoryLimit = c.HistoryLimit;
+            config.HistoryLimit = c.HistoryLimit; config.Vocabulary = c.Vocabulary;
             config.UiLanguage = c.UiLanguage;
             DialogResult = DialogResult.OK; Close();
         }

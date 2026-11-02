@@ -10,7 +10,8 @@ WordsCat (单词猫) is a Windows desktop reading companion for Chinese–Englis
 - Read formulas with bundled KaTeX, edit recognized text, and compare it with the original capture.
 - View results in a lightweight popup; switch between source and translation and select words to save.
 - Ask follow-up questions about the current selection, keeping independent translations separate.
-- Review vocabulary before saving to multiple Markdown notebooks, with duplicate checks and undo.
+- Review vocabulary before saving to multiple Markdown notebooks, with duplicate checks and undo. Switch common senses, IPA, AI examples and collocations on or off in settings.
+- Move the whole app folder with its internal notebooks and templates; internal paths are saved relative to the settings directory.
 - Keep recent translations locally, encrypted for the current Windows account.
 - Choose DeepSeek or a custom OpenAI-compatible model service, with a connection test and first-use setup guide.
 - Use Chinese or English UI, theme options, a collapsible history sidebar, a floating entry, and hotkeys.

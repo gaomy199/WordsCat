@@ -21,7 +21,7 @@ internal sealed class WordDialog : Form
     {
         this.config = config; this.store = store; this.api = api; this.original = original;
         this.readKey = readKey ?? (() => CredentialStore.ReadFor(config.BaseUrl));
-        template = VocabularyTemplate.Load(config.TemplateFile);
+        template = VocabularyTemplate.Load(config.TemplateFile).WithOptions(config.Vocabulary);
         Text = "单词猫 · 收藏生词"; Font = Ui.Font(); BackColor = Ui.Paper; AutoScaleMode = AutoScaleMode.None;
         ClientSize = new Size(700, 740); MinimumSize = new Size(620, 580); StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(22), ColumnCount = 1, RowCount = 6 };

@@ -7,6 +7,7 @@ namespace ReadDock;
 public sealed class AppConfig
 {
     public int SchemaVersion { get; set; } = 2;
+    public VocabularyOptions Vocabulary { get; set; } = new();
     public string ModelProvider { get; set; } = "";
     public bool ServiceGuideSeen { get; set; }
     public string BaseUrl { get; set; } = ModelPresets.BaseUrl;
@@ -56,6 +57,9 @@ public sealed class AppConfig
     }
     public void NormalizeNotebooks()
     {
+        Vocabulary ??= new();
+        TemplateFile = PortablePaths.Resolve(TemplateFile);
+        if (!string.IsNullOrWhiteSpace(LogoFile)) LogoFile = PortablePaths.Resolve(LogoFile);
         if (ModelProvider is not ("deepseek" or "custom"))
             ModelProvider = Uri.TryCreate(BaseUrl, UriKind.Absolute, out var providerUri) && ModelPresets.IsDeepSeek(providerUri) ? "deepseek" : "custom";
         if (RequestTimeoutSeconds is < 1 or > 600 || MaxRetries is < 0 or > 5)
@@ -64,14 +68,14 @@ public sealed class AppConfig
         TranslationDirection = "auto";
         if (TranslationInstruction == LegacyTranslationInstruction) TranslationInstruction = DefaultTranslationInstruction;
         HistoryLimit = Math.Clamp(HistoryLimit, 0, 1000);
-        if (Notebooks.Count == 0) Notebooks.Add(new NotebookTarget { Name = Path.GetFileNameWithoutExtension(TargetFile), File = Path.GetFullPath(TargetFile) });
+        if (Notebooks.Count == 0) Notebooks.Add(new NotebookTarget { Name = Path.GetFileNameWithoutExtension(TargetFile), File = PortablePaths.Resolve(TargetFile) });
         if (Notebooks.Count > 40) throw new InvalidDataException("最多支持 40 个单词本。");
         foreach (var n in Notebooks)
         {
             if (string.IsNullOrWhiteSpace(n.Id)) n.Id = Guid.NewGuid().ToString("N");
             n.Name = n.Name.Trim();
             if (n.Name.Length == 0 || string.IsNullOrWhiteSpace(n.File)) throw new InvalidDataException("请填写单词本名称和 Markdown 路径。");
-            n.File = Path.GetFullPath(n.File);
+            n.File = PortablePaths.Resolve(n.File);
             if (!n.File.EndsWith(".md", StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("单词本路径必须以 .md 结尾。");
         }
         if (Notebooks.Select(n => n.Id).Distinct().Count() != Notebooks.Count ||
@@ -93,7 +97,17 @@ public sealed class AppConfig
         AtomicFile.Write(file, File.ReadAllText(AppPaths.DefaultTemplate));
         return true;
     }
-    public void Save() { NormalizeNotebooks(); AtomicFile.Write(AppPaths.ConfigFile, JsonSerializer.Serialize(this, Json)); }
+    public void Save()
+    {
+        NormalizeNotebooks();
+        // Keep absolute runtime paths; only the serialized copy contains portable paths.
+        var stored = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(this, Json), Json)!;
+        stored.TemplateFile = PortablePaths.Store(TemplateFile);
+        stored.TargetFile = PortablePaths.Store(TargetFile);
+        stored.LogoFile = string.IsNullOrWhiteSpace(LogoFile) ? "" : PortablePaths.Store(LogoFile);
+        foreach (var n in stored.Notebooks) n.File = PortablePaths.Store(n.File);
+        AtomicFile.Write(AppPaths.ConfigFile, JsonSerializer.Serialize(stored, Json));
+    }
 }
 
 public sealed class NotebookTarget
@@ -138,6 +152,21 @@ public sealed class VocabularyTemplate
         foreach (Match m in Regex.Matches(t.EntryTemplate, @"\{\{([a-z0-9_]+)\}\}"))
             if (!allowed.Contains(m.Groups[1].Value)) throw new InvalidDataException("模板引用了未定义的字段：" + m.Groups[1].Value);
         return t;
+    }
+    public VocabularyTemplate WithOptions(VocabularyOptions options)
+    {
+        var copy = JsonSerializer.Deserialize<VocabularyTemplate>(JsonSerializer.Serialize(this, AppConfig.Json), AppConfig.Json)!;
+        foreach (var field in options.Fields())
+        {
+            if (!copy.Fields.Any(f => f.Key == field.Key)) copy.Fields.Add(field);
+            if (!copy.EntryTemplate.Contains("{{" + field.Key + "}}", StringComparison.Ordinal))
+            {
+                string line = "- **" + field.Label + "**：{{" + field.Key + "}}\n";
+                int separator = copy.EntryTemplate.LastIndexOf("\n---", StringComparison.Ordinal);
+                copy.EntryTemplate = separator >= 0 ? copy.EntryTemplate.Insert(separator, "\n" + line) : copy.EntryTemplate.TrimEnd() + "\n" + line;
+            }
+        }
+        return copy;
     }
     public string Render(WordEntry entry)
     {

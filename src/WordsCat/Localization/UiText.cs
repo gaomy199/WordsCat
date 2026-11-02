@@ -63,6 +63,18 @@ internal static class UiText
 
     static readonly Dictionary<string, string> English = new()
     {
+        ["收藏内容"] = "Vocabulary content",
+        ["补充常见词性与词义"] = "Add common parts of speech and meanings",
+        ["写入音标"] = "Include IPA pronunciation",
+        ["生成 AI 例句及译文"] = "Generate an AI example and translation",
+        ["补充常见搭配"] = "Include common collocations",
+        ["其他常见词性与释义"] = "Other common senses",
+        ["音标"] = "IPA pronunciation",
+        ["AI 例句"] = "AI example",
+        ["AI 例句译文"] = "AI example translation",
+        ["常见搭配"] = "Common collocations",
+        ["开关对新收藏生效；保留语境释义与文献原句，补充内容另列，可在保存前编辑。"] = "Applies to new entries. Extra content is separate from the source sentence and can be edited before saving.",
+        ["相对路径以 Data（settings.json 所在目录）为基准，移动软件时请保留整个文件夹。外部单词本保留绝对路径。\n开关不改写模板文件或已有笔记；移除单词本只移除配置项。"] = "Paths are relative to Data (the settings.json folder). Move the whole app folder together. External notebooks keep absolute paths.\nSwitches preserve template files and existing notes. Removing a notebook removes only its setting.",
         ["模型服务"] = "Model service", ["服务预设"] = "Service preset", ["模型名"] = "Model name",
         ["自定义 OpenAI 兼容"] = "Custom OpenAI-compatible",
         ["测试连接"] = "Test connection", ["视觉模型（留空时使用文本模型）"] = "Vision model (leave blank to use the text model)",
