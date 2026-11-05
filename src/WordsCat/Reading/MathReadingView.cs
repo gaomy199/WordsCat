@@ -13,6 +13,8 @@ internal sealed class MathReadingView : UserControl
     readonly PictureBox picture = new() { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
     readonly System.Windows.Forms.Timer refresh = new() { Interval = 180 };
     bool initialized, starting, documentReady;
+    bool rendering, renderQueued;
+    string? renderedPayload;
     readonly bool compact;
     internal event Action? Rendered;
     const string DocumentUrl = "https://readdock-assets.invalid/reader.html";
@@ -24,6 +26,7 @@ internal sealed class MathReadingView : UserControl
     {
         this.compact = compact;
         this.editor = editor; Dock = DockStyle.Fill;
+        DoubleBuffered = true; BackColor = Ui.Surface; browser.DefaultBackgroundColor = Ui.Surface;
         var reading = new TabPage("阅读"); reading.Controls.Add(browser);
         var raw = new TabPage(original ? "编辑原文" : "文本"); raw.Controls.Add(editor);
         tabs.TabPages.AddRange([reading, raw]);
@@ -33,7 +36,8 @@ internal sealed class MathReadingView : UserControl
             reading.Controls.Remove(browser);
             raw.Controls.Remove(editor);
             editor.ReadOnly = true; editor.Dock = DockStyle.Fill;
-            editor.Visible = false; Controls.Add(editor); Controls.Add(browser);
+            // Paint native text immediately; swap to formulas after the first local render.
+            browser.Visible = false; editor.Visible = true; Controls.Add(browser); Controls.Add(editor);
         }
         else Controls.Add(tabs);
         browser.CreationProperties = new CoreWebView2CreationProperties
@@ -41,7 +45,7 @@ internal sealed class MathReadingView : UserControl
         editor.TextChanged += (_, _) => { SelectedText = ""; refresh.Stop(); refresh.Start(); };
         editor.Enter += (_, _) => SelectedText = "";
         refresh.Tick += (_, _) => { refresh.Stop(); Render(); };
-        Load += async (_, _) => await InitializeAsync();
+        Load += async (_, _) => { await Task.Yield(); if (!IsDisposed) await InitializeAsync(); };
         VisibleChanged += (_, _) => { if (Visible) Render(); };
     }
     async Task InitializeAsync()
@@ -72,6 +76,7 @@ internal sealed class MathReadingView : UserControl
             {
                 NavigationDiagnostic += " completed " + e.IsSuccess + " " + e.WebErrorStatus;
                 documentReady = e.IsSuccess;
+                renderedPayload = null;
                 if (documentReady) Render();
             };
             core.NewWindowRequested += (_, e) => e.Handled = true;
@@ -96,15 +101,31 @@ internal sealed class MathReadingView : UserControl
     async void Render()
     {
         if (!initialized || !documentReady || IsDisposed) return;
-        SelectedText = "";
-        browser.DefaultBackgroundColor = Ui.Surface;
+        if (rendering) { renderQueued = true; return; }
+        rendering = true;
         try
         {
-            string size = compact ? "document.body.style.fontSize='16px';" : "";
-            await browser.ExecuteScriptAsync(size + "window.setReading(" + ReadingContent.Payload(editor.Text) + ");");
-            if (!IsDisposed) Rendered?.Invoke();
+            do
+            {
+                renderQueued = false;
+                string payload = ReadingContent.Payload(editor.Text);
+                if (payload == renderedPayload) break;
+                SelectedText = ""; browser.DefaultBackgroundColor = Ui.Surface;
+                string size = compact ? "document.body.style.fontSize='16px';" : "";
+                await browser.ExecuteScriptAsync(size + "window.setReading(" + payload + ");");
+                if (IsDisposed) return;
+                renderedPayload = payload;
+                if (compact && !browser.Visible)
+                {
+                    SuspendLayout();
+                    browser.Visible = true; browser.BringToFront(); editor.Visible = false;
+                    ResumeLayout(true);
+                }
+                Rendered?.Invoke();
+            } while (renderQueued && !IsDisposed);
         }
         catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException or System.Runtime.InteropServices.COMException) { RenderError = ex.Message; }
+        finally { rendering = false; }
     }
     public void SetCapture(Image? image)
     {

@@ -42,6 +42,7 @@ internal sealed class TranslationPopup : Form
     {
         this.closeAction = closeAction;
         Text = "单词猫 · 轻量翻译"; Font = Ui.Font(); AutoScaleMode = AutoScaleMode.None;
+        DoubleBuffered = true;
         FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; TopMost = true; StartPosition = FormStartPosition.Manual;
         ClientSize = new Size(600, 180); MinimumSize = new Size(380, 0); KeyPreview = true; Padding = new Padding(1);
         root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(16, 10, 16, 14), ColumnCount = 1, RowCount = 4, Tag = "surface" };

@@ -4,6 +4,13 @@
 
 - Refresh the public README with download/setup steps, keyboard shortcuts, developer checks, output-directory guidance and license links. Move temporary working-tree/publication status into project records; keep the English entry documentation and prominent Chinese guide link. Documentation only; application version remains 0.3.7.
 
+## 0.3.14 · 2026-11-05 · Uncommitted
+
+- Show the selection popup before waiting for modifier release, clipboard capture or translation. Paint native text while the local formula reader initializes; keep Ctrl+Alt+D and add Ctrl+Alt+T as an alias. Cancelling also interrupts capture waits.
+- Open the main window with a single left click on the system tray icon; retain the right-click menu.
+- Buffer form painting, coalesce formula rendering and skip unchanged content during visibility switches. Hide outgoing popups immediately and defer renderer disposal until the next UI turn. Keep the v0.3.9 popup layout.
+- Update publish/ only. No automated tests, UI inspection, model requests, ZIP, commit or upload, as requested; interaction timing remains for user assessment.
+
 ## 0.3.13 · 2026-11-05 · Uncommitted
 
 - Restore the translation popup's v0.3.9 layout: title and close button in the header, with the original three actions below the reading/status area. Remove the popup notebook selector, its reserved header space and its selection event wiring. Keep notebook choice in the main window and vocabulary editor; the popup title follows the active target.

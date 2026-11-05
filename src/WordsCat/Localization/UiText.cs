@@ -63,6 +63,7 @@ internal static class UiText
 
     static readonly Dictionary<string, string> English = new()
     {
+        ["Ctrl+Alt+D / Ctrl+Alt+T  划词翻译\nCtrl+Alt+S  截图翻译\nCtrl+Alt+W  收藏单词\nCtrl+Alt+R  显示 / 隐藏主窗口\n单击托盘图标打开主界面。取词时先显示轻量弹窗，再继续后台翻译。"] = "Ctrl+Alt+D / Ctrl+Alt+T  Translate selection\nCtrl+Alt+S  Capture & translate\nCtrl+Alt+W  Save word\nCtrl+Alt+R  Show / hide main window\nClick the tray icon to open the main window. The popup appears before selection capture and translation finish.",
         ["网络连接失败，请检查网络和 Base URL。"] = "Network connection failed. Check the network and Base URL.",
         ["连接测试等待 {0} 秒后超时；模型可能排队或生成较慢，请稍后重试。"] = "Connection test timed out after {0} seconds. The model may be queued or generating slowly; retry later.",
         ["无法解析模型服务域名，请检查 DNS 和 Base URL。"] = "Cannot resolve the model service hostname. Check DNS and the Base URL.",

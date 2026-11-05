@@ -27,12 +27,13 @@ internal static class Native
     public static bool IsOurWindow(IntPtr hwnd) { GetWindowThreadProcessId(hwnd, out var pid); return pid == Environment.ProcessId; }
     public static string WindowTitle(IntPtr hwnd) { var sb = new StringBuilder(1024); GetWindowText(hwnd, sb, sb.Capacity); return sb.ToString(); }
 
-    public static async Task<string> CopySelectionAsync(IntPtr source)
+    public static async Task<string> CopySelectionAsync(IntPtr source, CancellationToken token = default)
     {
-        for (int i = 0; i < 35 && new[] { 0x10, 0x11, 0x12 }.Any(k => (GetAsyncKeyState(k) & 0x8000) != 0); i++) await Task.Delay(40);
+        token.ThrowIfCancellationRequested();
+        for (int i = 0; i < 35 && new[] { 0x10, 0x11, 0x12 }.Any(k => (GetAsyncKeyState(k) & 0x8000) != 0); i++) await Task.Delay(40, token);
         if (new[] { 0x10, 0x11, 0x12 }.Any(k => (GetAsyncKeyState(k) & 0x8000) != 0)) throw new InvalidOperationException("请松开 Ctrl / Alt / Shift 后再试。");
         if (source == IntPtr.Zero || IsOurWindow(source)) throw new InvalidOperationException("请先在网页 / Zotero / WPS 中选择文字，再按 Ctrl+Alt+D。也可以手动复制后在工具中粘贴。");
-        if (GetForegroundWindow() != source) { SetForegroundWindow(source); await Task.Delay(250); }
+        if (GetForegroundWindow() != source) { SetForegroundWindow(source); await Task.Delay(250, token); }
         if (GetForegroundWindow() != source) throw new InvalidOperationException("无法切回阅读器。请在原阅读器中选中文字，使用 Ctrl+Alt+D，或改用截图翻译。");
         IDataObject? backup = null;
         try { backup = Clipboard.GetDataObject(); } catch { }
@@ -46,7 +47,7 @@ internal static class Native
         {
             for (int i = 0; i < 50; i++)
             {
-                await Task.Delay(45);
+                await Task.Delay(45, token);
                 if (GetClipboardSequenceNumber() != before && GetForegroundWindow() == source)
                 {
                     copiedSequence = GetClipboardSequenceNumber();

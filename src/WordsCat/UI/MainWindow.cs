@@ -62,6 +62,7 @@ internal sealed class MainWindow : Form
         history = new ReadingHistory(AppPaths.DataDirectory);
         try { history.Trim(config.HistoryLimit); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         Text = "单词猫 WordsCat · 中英阅读助手"; BackColor = Ui.Paper; ForeColor = Ui.Ink; Font = Ui.Font();
+        DoubleBuffered = true;
         AutoScaleMode = AutoScaleMode.None; StartPosition = FormStartPosition.CenterScreen; KeyPreview = true;
         ClientSize = new Size(1380, 780); MinimumSize = new Size(1140, 680); ShowInTaskbar = true;
         dockIcon = Ui.CreateAppIcon(); Icon = dockIcon;
@@ -148,7 +149,7 @@ internal sealed class MainWindow : Form
         tray = new NotifyIcon { Icon = dockIcon, Text = UiText.T("单词猫 WordsCat · Ctrl+Alt+S 截图翻译"), Visible = true, ContextMenuStrip = menu };
         Ui.ApplyTheme(menu);
         UiText.ApplyMenu(menu);
-        tray.DoubleClick += (_, _) => ShowMain();
+        tray.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) ShowMain(); };
         foregroundTracker.Tick += (_, _) => { var h = Native.GetForegroundWindow(); if (h != IntPtr.Zero && !Native.IsOurWindow(h)) lastSource = h; }; foregroundTracker.Start();
         Shown += (_, _) =>
         {
@@ -324,8 +325,8 @@ internal sealed class MainWindow : Form
     public void ShowMain()
     {
         if (IsDisposed || quitting) return;
-        // Finish the popup's click/close before Windows transfers activation to this window.
-        DismissPopup(true);
+        // Hide the popup immediately; retire its renderer after the main window is shown.
+        DismissPopup(true, deferDisposal: true);
         Show(); WindowState = FormWindowState.Normal; BringToFront(); Activate();
         BeginInvoke((Action)(() => { if (!IsDisposed && Visible && !quitting) { BringToFront(); Activate(); Native.SetForegroundWindow(Handle); } }));
     }
@@ -337,15 +338,21 @@ internal sealed class MainWindow : Form
         sourceReading.ClearTransientContent(); translationReading.ClearTransientContent();
         SetStatus("本次翻译和追问已清空。已收藏的单词会保留。");
     }
-    void DismissPopup(bool preserve)
+    void DismissPopup(bool preserve, bool deferDisposal = false)
     {
         var old = popup; popup = null;
         if (old == null || old.IsDisposed) return;
-        old.PreserveOnClose = preserve; old.Close(); old.Dispose();
+        old.PreserveOnClose = preserve;
+        if (deferDisposal && IsHandleCreated && !Disposing && !quitting)
+        {
+            old.Hide();
+            BeginInvoke((Action)(() => { if (!old.IsDisposed) { old.Close(); old.Dispose(); } }));
+        }
+        else { old.Close(); old.Dispose(); }
     }
     internal void OpenPopup(Rectangle anchor, string progress)
     {
-        DismissPopup(true);
+        DismissPopup(true, deferDisposal: true);
         TranslationPopup? created = null;
         created = new TranslationPopup(config.ActiveNotebook.Name, ShowMain, () => OpenWordDialog(created!, false), () =>
         {
@@ -353,7 +360,7 @@ internal sealed class MainWindow : Form
             cancellation?.Cancel();
             ClearSession(); if (busy) clearWhenIdle = true;
         });
-        popup = created; popup.SetLoading(progress); popup.PlaceNear(anchor); popup.Show();
+        popup = created; popup.SetLoading(progress); popup.PlaceNear(anchor); popup.Show(); popup.Update();
     }
     void RefreshNotebooks()
     {
@@ -376,12 +383,16 @@ internal sealed class MainWindow : Form
     {
         if (busy || dialogOpen) return;
         var h = Native.GetForegroundWindow(); if (h != IntPtr.Zero && !Native.IsOurWindow(h)) lastSource = h;
+        var selectionWindow = lastSource;
+        var anchor = new Rectangle(Cursor.Position, new Size(1, 1));
         await RunAsync("正在获取阅读器中选中的文字…", async token =>
         {
-            menu.Close(); DismissPopup(true); await Task.Delay(120, token);
-            var text = await Native.CopySelectionAsync(lastSource); token.ThrowIfCancellationRequested();
-            ClearSession(); source.Text = text; Hide();
-            OpenPopup(new Rectangle(Cursor.Position, new Size(1, 1)), "正在翻译所选文字…");
+            menu.Close(); Hide(); ClearSession();
+            OpenPopup(anchor, "正在获取阅读器中选中的文字…");
+            await Task.Yield(); token.ThrowIfCancellationRequested();
+            var text = await Native.CopySelectionAsync(selectionWindow, token); token.ThrowIfCancellationRequested();
+            source.Text = text;
+            popup?.SetLoading("正在翻译所选文字…");
             if (string.IsNullOrWhiteSpace(ReadKey())) { SetStatus("未配置 API Key，可打开主界面进行设置。"); popup?.SetResult(text, "已取得原文 · 未配置 API Key，尚未翻译"); }
             else await TranslateCoreAsync(token);
         });
@@ -541,7 +552,7 @@ internal sealed class MainWindow : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        foreach (var (id, key, label) in new[] { (1, Keys.D, "Ctrl+Alt+D"), (2, Keys.S, "Ctrl+Alt+S"), (3, Keys.W, "Ctrl+Alt+W"), (4, Keys.R, "Ctrl+Alt+R") })
+        foreach (var (id, key, label) in new[] { (1, Keys.D, "Ctrl+Alt+D"), (2, Keys.S, "Ctrl+Alt+S"), (3, Keys.W, "Ctrl+Alt+W"), (4, Keys.R, "Ctrl+Alt+R"), (5, Keys.T, "Ctrl+Alt+T") })
             if (!Native.RegisterHotKey(Handle, id, 0x4003, (uint)key)) hotkeyFailures.Add(label);
     }
     protected override void WndProc(ref Message m)
@@ -551,6 +562,7 @@ internal sealed class MainWindow : Form
             switch (m.WParam.ToInt32())
             {
                 case 1: _ = CaptureTextAsync(); break;
+                case 5: _ = CaptureTextAsync(); break;
                 case 2: _ = CaptureImageAsync(); break;
                 case 3: SaveWord(); break;
                 case 4: ToggleMain(); break;
@@ -558,7 +570,7 @@ internal sealed class MainWindow : Form
         }
         base.WndProc(ref m);
     }
-    protected override void OnHandleDestroyed(EventArgs e) { for (int i = 1; i <= 4; i++) Native.UnregisterHotKey(Handle, i); base.OnHandleDestroyed(e); }
+    protected override void OnHandleDestroyed(EventArgs e) { for (int i = 1; i <= 5; i++) Native.UnregisterHotKey(Handle, i); base.OnHandleDestroyed(e); }
     protected override void Dispose(bool disposing)
     {
         if (disposing) { setupGuide?.Dispose(); DismissPopup(true); currentConversation.Clear(); sessionOriginal = ""; sessionTranslation = ""; tips.Dispose(); foregroundTracker.Dispose(); tray.Dispose(); floating.Dispose(); menu.Dispose(); api.Dispose(); dockIcon.Dispose(); }

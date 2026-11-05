@@ -62,6 +62,7 @@ internal sealed class SettingsDialog : Form
         this.confirmHistoryReduction = confirmHistoryReduction ?? (message => UiText.Show(this, message, "永久删除历史记录", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) == DialogResult.Yes);
         config.NormalizeNotebooks();
         Text = "单词猫 · 设置"; Font = Ui.Font(); BackColor = Ui.Paper; AutoScaleMode = AutoScaleMode.None;
+        DoubleBuffered = true;
         ClientSize = new Size(820, 780); MinimumSize = new Size(720, 650);
         StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
         apiKey.UseSystemPasswordChar = true; apiKey.Clear(); apiKey.Name = "modelApiKey";
@@ -134,7 +135,7 @@ internal sealed class SettingsDialog : Form
         historyLimit.ValueChanged += (_, _) => UpdateHistoryNotice(); UpdateHistoryNotice();
         AddField(rp, "翻译要求", instruction, 112); AddField(rp, "当前阅读术语表（每行一条，例如：robustness = 稳健性）", glossary, 112);
         AddControl(rp, Ui.Row(floating, startup), 42);
-        AddNote(rp, "Ctrl+Alt+D  划词翻译\nCtrl+Alt+S  截图翻译\nCtrl+Alt+W  收藏单词\nCtrl+Alt+R  显示 / 隐藏主窗口\n截图后先在选区附近显示轻量弹窗，点击「打开主界面」再展开详细操作。", 130);
+        AddNote(rp, "Ctrl+Alt+D / Ctrl+Alt+T  划词翻译\nCtrl+Alt+S  截图翻译\nCtrl+Alt+W  收藏单词\nCtrl+Alt+R  显示 / 隐藏主窗口\n单击托盘图标打开主界面。取词时先显示轻量弹窗，再继续后台翻译。", 130);
         root.Controls.Add(Ui.Card(tabs), 0, 1);
         var actions = Ui.Row(Ui.Button("保存设置", Save, true, 120), Ui.Button("取消", () => Close(), false, 90)); actions.Padding = new Padding(0, 12, 0, 0);
         root.Controls.Add(actions, 0, 2);

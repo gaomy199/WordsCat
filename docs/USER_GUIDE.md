@@ -1,6 +1,6 @@
 # WordsCat user guide
 
-Version **0.3.13** · Windows 11
+Version **0.3.14** · Windows 11
 
 WordsCat translates short Chinese or English selections and saves reviewed vocabulary to Markdown notebooks.
 
@@ -10,7 +10,7 @@ Download a `WordsCat-VERSION-win-x64.zip` asset from [GitHub Releases](https://g
 
 When packaging locally, the ready-to-run ZIP is written under `dist/`, with its checksum in `dist/SHA256SUMS.txt`. The default `publish/` folder contains the framework-dependent development build.
 
-Version 0.3.13 is built locally as `publish/WordsCat.exe`. No new ZIP is generated for this version. Check the chosen Release for its actual version.
+Version 0.3.14 is built locally as `publish/WordsCat.exe`. No new ZIP is generated for this version. Check the chosen Release for its actual version.
 
 On first launch without a saved key, a short, dismissible guide offers **Open settings** or **Set up later**. Open **Settings → Models & recognition → Model service** and choose **DeepSeek**, **Gitee AI · Moark**, or **Custom OpenAI-compatible**. DeepSeek retains `https://api.deepseek.com` and `deepseek-flash`. The Gitee preset uses `https://ai.gitee.com/v1`; a Gitee homepage URL is also normalized to this API path. For a custom service, enter its HTTPS Base URL.
 
@@ -28,13 +28,15 @@ Choose English or Chinese under **Appearance**. Language and appearance changes 
 
 ## Translate while reading
 
-- Select text in a reader or browser and use **Ctrl+Alt+D**.
+- Select text in a reader or browser and use **Ctrl+Alt+D** or **Ctrl+Alt+T**.
 - Use **Ctrl+Alt+S** to capture text from a scanned PDF or image.
 - Use **Paste** or the source editor to supply text manually, then choose **Translate source**.
 
 Chinese and English are detected automatically. The left pane is the source; the right pane is the translation. **Swap** moves the initial translation into the source and detects its language again. Editing a completed source clears its previous translation and follow-up context.
 
 Capture results first appear in a lightweight popup near the selection. Open the main window from that popup when you need more space. The source tabs let you read formulas, edit text, and inspect the current capture. Captures are transient and are not stored in translation history.
+
+Selection shortcuts show the popup before text capture and translation finish. Native text remains visible while the formula reader initializes. Click the system tray icon once with the left mouse button to open the main window after hiding it; right-click still opens the tray menu. Window changes skip unchanged formula renders and reduce repainting.
 
 The popup renders source and translation with the same local KaTeX reader as the main window. Choose **Show source**, then **Show translation** to switch back; select text in the reading area to copy it. New selections and errors clear the prior source/toggle state. Missing WebView2 falls back to selectable plain text.
 
