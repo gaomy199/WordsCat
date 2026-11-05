@@ -1,6 +1,14 @@
 # 项目状态
 
-更新日期：2026-11-05。应用版本：**0.3.18，收藏字段高度与主界面排版修正**。最新维护修复 Windows PowerShell 5.1 下发布前密钥守卫的压缩包读取失败；不访问真实凭据或模型服务。
+更新日期：2026-11-06。应用版本：**0.3.18，收藏字段高度与主界面排版修正**。最新维护修复 Windows PowerShell 5.1 下便携 ZIP 路径兼容问题；不访问真实凭据或模型服务。
+
+## 2026-11-06 打包脚本 ZIP 路径兼容修复（版本保持 0.3.18）
+
+- 用户在干净源码 bbff4f9 创建本地 v0.3.18 后，运行 publish-release.ps1 -RequireClean，构建成功但归档检查失败。只读核对 .build/release-15101130eee84448b0a9044270effd68/ 中实际 ZIP：文件数与暂存目录均为 357；ZIP 内实际使用 WordsCat\\WordsCat.exe，而旧检查只接受 WordsCat/WordsCat.exe。用户操作无误，根因是 Windows PowerShell 5.1/.NET Framework 的 CreateFromDirectory 路径分隔符。
+- package-release.ps1 改用 ZipArchive 为每个暂存文件显式生成正斜杠条目名，显式加载 Compression 和 FileSystem；归档检查对全部文件名进行区分大小写的集合核对并拒绝重复条目，保留原有私有文件、运行时许可、checksum 和 RequireClean 守卫。不改应用行为或用户 Data/。
+- 已在 Windows PowerShell 5.1 和 PowerShell 7 分别从新暂存目录离线自包含构建、打包成功；两包各 357 文件，逐条检查标准路径、与各自暂存文件精确字节一致、无私有文件、SHA256SUMS 一致及 sourceDirty=true 开发来源。输出仅位于 .test-results/package-compat-0.3.18-1dca1320b64e48fcb3e577fe7f141dba/，未覆盖 dist/。Windows PowerShell ZIP SHA-256 为 8936dbb97b9d15600900eb0d30b7a0150a03ce79f2aceac2d0aa525a05aeb5c2；PowerShell 7 ZIP 为 f16a4a34ab160cb9d7ec489a29f2bb855ec6388f20cf1a821334cc5f5f2b3bc6。
+- 开始维护时工作区干净，HEAD 与本地 v0.3.18 均为 bbff4f9。2026-11-06 通过 GitHub 只读 matching-refs 查询，远端 tags/v0.3.18 返回空列表；未创建/移动标签或执行 commit/push/发布。用户提交本轮修复后，应将尚未推送的本地标签指向新提交，再从干净源码打包或推送标签触发现有 Release 工作流。公开包不得使用本轮 sourceDirty=true 的测试 ZIP。
+- RequireClean 对未提交修复的负向检查、git diff --check 及旧 fixture 与 HEAD 精确字节散列核对均通过。已解压 Windows PowerShell 测试 ZIP；解压包 verify 启动后，用户要求只提供打包到 dist/ 和 GitHub Release 的命令顺序，因此在前置扫描阶段停止本次后台验证，后续按交付命令由用户执行完整验证；未声称本轮通过了解压程序自测。本轮没有 UI 改动，不重复先前实际界面验收。未访问生产凭据、模型服务、用户 Data/ 或私有样本，第三方声明和旧 fixture 保持。
 
 ## 2026-11-05 发布检查脚本兼容修复（版本保持 0.3.18）
 

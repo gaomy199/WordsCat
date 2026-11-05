@@ -17,11 +17,15 @@ The packager builds into a new `.build/release-GUID/WordsCat/` directory rather 
 
 `publish-release.ps1` is the public packaging entry point; `package-release.ps1` remains the shared implementation and compatibility entry point. Both accept `-Offline` for cached dependencies and `-RequireClean` to reject uncommitted source. The release workflow requires a clean checkout. LICENSE, NOTICE, SECURITY.md, KaTeX/WebView2 notices, and the actual resolved runtime-pack license/third-party files are required in each self-contained ZIP.
 
+The packager supports Windows PowerShell 5.1 and PowerShell 7. It writes explicit forward-slash ZIP entry names and checks the complete file-name set against staging. The older .NET Framework `CreateFromDirectory` implementation could write backslashes, causing the previous forward-slash executable check to fail even when all files were present. Do not bypass archive verification to work around that error.
+
 The output is `dist/WordsCat-VERSION-win-x64.zip` plus `dist/SHA256SUMS.txt`. The ZIP has a top-level `WordsCat/` folder. `release-info.json` records the application version, architecture, included frameworks, source revision, and whether source changes were uncommitted. Publish only a build with `sourceDirty: false`. `-Force` replaces only the generated ZIP for that version; it does not clean user data directories.
 
 Do not include a fixed WebView2 browser or silently install system components. The app uses the installed Edge WebView2 Runtime and retains text views if it is unavailable.
 
 The latest locally validated archive is `dist/WordsCat-0.3.9-win-x64.zip`; evidence is in [VALIDATION-v0.3.9.md](VALIDATION-v0.3.9.md). It is an uncommitted working-tree package (`sourceDirty: true`), not a published GitHub Release. Previous archives are retained.
+
+On 2026-11-06, development packages of 0.3.18 were created with both Windows PowerShell 5.1 and PowerShell 7 under `.test-results/package-compat-0.3.18-1dca1320b64e48fcb3e577fe7f141dba/`. Both contain 357 files with standard paths, byte-for-byte staging matches and matching checksum files. These compatibility-test packages have `sourceDirty: true`; rebuild from the final clean commit for publication. They do not replace the older `dist/` archives.
 
 ## Verify the actual archive
 
@@ -38,6 +42,8 @@ Open the extracted executable through `--offline-preview --data-dir <isolated di
 ## Publish
 
 When source submission/publication has been authorized, commit and push the reviewed source, then tag the exact build commit as `vVERSION`. `.github/workflows/release.yml` handles matching `v*` tag pushes: compare the tag with the project version, build and verify without UI, package from a clean checkout, extract/retest, scan secrets, and create a GitHub Release with the named ZIP and `SHA256SUMS.txt`. It uses the built-in GitHub token with contents-write permission only in the release job; checkout does not persist credentials. It refuses an existing release rather than overwriting assets. Keep binaries in Release assets, never Git history.
+
+If a packaging fix is committed after a local tag was created, update that tag to the final commit before pushing it. Check GitHub first: `git tag -f vVERSION` changes only the local tag and is appropriate for a tag that has not been pushed. Do not force-push or silently replace a published release tag. Run local `publish-release.ps1 -RequireClean` only after all source and documentation changes are committed.
 
 The CI workflow runs on main pushes and pull requests with read-only contents permission. Hosted workflows cannot be executed locally: static validation and local equivalents do not prove GitHub runner/authentication behavior. Observe the first hosted CI and tag run after submission. Before a public release, enable GitHub private vulnerability reporting so the SECURITY.md link is usable. This task does not change repository settings or publish anything.
 

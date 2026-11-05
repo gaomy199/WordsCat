@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix portable ZIP creation in Windows PowerShell 5.1: write standard forward-slash entry names explicitly and validate every archive file against the staging file list. Keep clean-source, private-file and third-party notice checks. Application version remains 0.3.18.
+
 - Fix secret-guard ZIP/NuGet scanning in Windows PowerShell 5.1 by explicitly loading System.IO.Compression. Add clean-archive and malformed-archive regressions while retaining credential checks inside archives and staged blobs. Application version remains 0.3.18.
 
 - Refresh the public README with download/setup steps, keyboard shortcuts, developer checks, output-directory guidance and license links. Move temporary working-tree/publication status into project records; keep the English entry documentation and prominent Chinese guide link. Documentation only; application version remains 0.3.7.

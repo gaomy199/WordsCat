@@ -90,13 +90,33 @@ foreach ($taskFile in $taskFiles) {
     $taskRelative = $taskFile.FullName.Substring($taskApp.Length + 1).Replace('\','/')
     if ($taskRelative -match '(^|/)(Data|PreviewData|Cache|fixtures|\.git|\.test-results)(/|$)|(^|/)(settings\.json|\.env(?:\..*)?)$|\.(pfx|pem|key|p12|p8|bak|log|tmp|pdb)$') { throw ('Private/generated file in release: ' + $taskRelative) }
 }
+Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $taskTempZip = Join-Path $taskStage $taskName
-[IO.Compression.ZipFile]::CreateFromDirectory($taskApp, $taskTempZip, [IO.Compression.CompressionLevel]::Optimal, $true)
+# .NET Framework's CreateFromDirectory uses backslashes on Windows. Write
+# explicit portable entry names so Windows PowerShell 5.1 and pwsh agree.
+$taskZipStream = [IO.File]::Open($taskTempZip,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+$taskCreatedArchive = $null
+try {
+    $taskCreatedArchive = [IO.Compression.ZipArchive]::new($taskZipStream,[IO.Compression.ZipArchiveMode]::Create,$false)
+    foreach ($taskFile in $taskFiles) {
+        $taskEntryName = 'WordsCat/' + $taskFile.FullName.Substring($taskApp.Length + 1).Replace('\','/')
+        [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($taskCreatedArchive,$taskFile.FullName,$taskEntryName,[IO.Compression.CompressionLevel]::Optimal)
+    }
+}
+finally { if ($taskCreatedArchive) { $taskCreatedArchive.Dispose() }; $taskZipStream.Dispose() }
 $taskArchive = [IO.Compression.ZipFile]::OpenRead($taskTempZip)
 try {
     $taskEntries = @($taskArchive.Entries | Where-Object { $_.Name })
-    if ($taskEntries.Count -ne $taskFiles.Count -or -not ($taskEntries.FullName -contains 'WordsCat/WordsCat.exe')) { throw 'Archive contents differ from the verified staging directory.' }
+    $taskEntryNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($taskEntry in $taskEntries) {
+        if (-not $taskEntryNames.Add($taskEntry.FullName)) { throw 'Duplicate file in release archive.' }
+    }
+    if ($taskEntries.Count -ne $taskFiles.Count) { throw 'Archive contents differ from the verified staging directory.' }
+    foreach ($taskFile in $taskFiles) {
+        $taskExpectedName = 'WordsCat/' + $taskFile.FullName.Substring($taskApp.Length + 1).Replace('\','/')
+        if (-not $taskEntryNames.Contains($taskExpectedName)) { throw 'Archive contents differ from the verified staging directory.' }
+    }
     if ($taskEntries.FullName | Where-Object { $_ -match '(^|/)(Data|PreviewData|Cache|fixtures|\.git)(/|$)' }) { throw 'Private directory in archive.' }
 }
 finally { $taskArchive.Dispose() }
