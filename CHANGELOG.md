@@ -4,6 +4,12 @@
 
 - Refresh the public README with download/setup steps, keyboard shortcuts, developer checks, output-directory guidance and license links. Move temporary working-tree/publication status into project records; keep the English entry documentation and prominent Chinese guide link. Documentation only; application version remains 0.3.7.
 
+## 0.3.15 · 2026-11-05 · Uncommitted
+
+- Change the duplicate-word confirmation: Yes replaces matching entries in the selected notebook with the current reviewed entry; No returns to editing. Replace only identified card/legacy-section ranges using deterministic code, retain unrelated text and support existing backup/undo and exclusive write locking. Refuse unsafe entry boundaries.
+- Replace the vocabulary editor's AI definitions button with Add IPA, AI examples and Add collocations buttons before Cancel. Expand fields and Markdown only for this dialog; request and apply only the chosen fields, preserving the other edits. Keep initial automatic enrichment and settings defaults independent.
+- Update publish/ only. No tests, UI inspection, API requests, ZIP packaging, commit or upload, as requested.
+
 ## 0.3.14 · 2026-11-05 · Uncommitted
 
 - Show the selection popup before waiting for modifier release, clipboard capture or translation. Paint native text while the local formula reader initializes; keep Ctrl+Alt+D and add Ctrl+Alt+T as an alias. Cancelling also interrupts capture waits.

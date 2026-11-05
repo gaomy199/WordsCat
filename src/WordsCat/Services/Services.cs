@@ -120,7 +120,7 @@ public sealed class VocabularyStore
         return text.Contains(" word=" + encoded + " -->", StringComparison.Ordinal) ||
             Regex.Matches(text, @"^##\s+(.+?)\s*$", RegexOptions.Multiline).Any(m => WordEntry.Normalize(m.Groups[1].Value) == WordEntry.Normalize(word));
     }
-    public SaveReceipt Save(string target, VocabularyTemplate template, WordEntry entry, bool allowDuplicate)
+    public SaveReceipt Save(string target, VocabularyTemplate template, WordEntry entry, bool allowDuplicate, bool replaceDuplicate = false)
     {
         VocabularyOptions.ValidateWordForms(entry);
         foreach (var f in template.Fields.Where(f => f.Required))
@@ -129,7 +129,7 @@ public sealed class VocabularyStore
         if (!Path.GetExtension(path).Equals(".md", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("单词本必须是 .md 文件。");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         bool existed = File.Exists(path);
-        // Keep the file open without write/delete sharing while reading and appending.
+        // Keep the file open without write/delete sharing through duplicate handling and writing.
         using var fs = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
         if (fs.Length > 20 * 1024 * 1024) throw new InvalidOperationException("单词本超过 20 MB，请分成多个笔记后再收藏。");
         var before = new byte[checked((int)fs.Length)];
@@ -137,17 +137,20 @@ public sealed class VocabularyStore
         if (before.Length >= 2 && (before[0] == 0xff && before[1] == 0xfe || before[0] == 0xfe && before[1] == 0xff))
             throw new InvalidDataException("请将目标 Markdown 文件另存为 UTF-8 编码后使用。");
         var beforeText = Utf8.GetString(before);
-        if (!allowDuplicate && ContainsWord(beforeText, entry.Values["word"])) throw new DuplicateWordException();
+        bool duplicate = ContainsWord(beforeText, entry.Values["word"]);
+        if (!allowDuplicate && !replaceDuplicate && duplicate) throw new DuplicateWordException();
         var marker = "<!-- readdock:" + entry.Id + " word=" + Convert.ToBase64String(Encoding.UTF8.GetBytes(entry.NormalizedWord)) + " -->\n";
-        var addition = (before.Length == 0 ? template.FileHeader.TrimEnd() + "\n\n" : "\n\n") + marker + template.Render(entry) + "<!-- /readdock:" + entry.Id + " -->\n";
-        var bytes = Encoding.UTF8.GetBytes(addition);
+        var block = marker + template.Render(entry) + "<!-- /readdock:" + entry.Id + " -->\n";
+        var afterText = replaceDuplicate && duplicate ? NotebookReplacement.Replace(beforeText, entry.Values["word"], block)
+            : beforeText + (before.Length == 0 ? template.FileHeader.TrimEnd() + "\n\n" : "\n\n") + block;
+        var bytes = Encoding.UTF8.GetBytes(afterText);
         var backupFolder = Path.Combine(AppPaths.DataDirectory, "Backups");
         Directory.CreateDirectory(backupFolder);
         var backup = Path.Combine(backupFolder, DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + "-" + entry.Id + ".bak");
         File.WriteAllBytes(backup, before);
-        try { fs.Position = fs.Length; fs.Write(bytes); fs.Flush(true); }
-        catch { fs.SetLength(before.Length); fs.Flush(true); throw; }
-        var hash = Convert.ToHexString(SHA256.HashData(before.Concat(bytes).ToArray()));
+        try { fs.Position = 0; fs.Write(bytes); fs.SetLength(bytes.Length); fs.Flush(true); }
+        catch { fs.Position = 0; fs.Write(before); fs.SetLength(before.Length); fs.Flush(true); throw; }
+        var hash = Convert.ToHexString(SHA256.HashData(bytes));
         LastSave = new SaveReceipt(path, before, hash, existed);
         // Only application-created backup files in this application's backup directory.
         foreach (var old in new DirectoryInfo(backupFolder).GetFiles("*.bak").OrderByDescending(f => f.CreationTimeUtc).Skip(20))

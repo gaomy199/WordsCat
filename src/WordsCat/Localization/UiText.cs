@@ -63,6 +63,13 @@ internal static class UiText
 
     static readonly Dictionary<string, string> English = new()
     {
+        ["补全音标"] = "Add IPA",
+        ["正在补充本次词条的所选内容…"] = "Adding the selected content to this entry…",
+        ["已补充本次词条内容，可编辑后保存。输入 {0} / 输出 {1} tokens"] = "Added to this entry. Review before saving. {0} input / {1} output tokens",
+        ["这个单词已经收藏过。\n\n是否用本次词条覆盖当前单词本中的旧词条？\n选择「是」替换旧内容；选择「否」返回修改。"] = "This word is already saved.\n\nReplace its existing entries in this notebook with the current entry?\nChoose Yes to replace, or No to return to editing.",
+        ["旧词条的保存标记不完整，无法安全覆盖。请先在单词本中修复该词条。"] = "The existing entry has incomplete save markers. Repair it in the notebook before replacing it.",
+        ["无法确定旧词条的完整范围，未覆盖文件。请先检查单词本中的词条格式。"] = "Cannot identify the complete existing entry. The file was not overwritten. Check the entry format in the notebook.",
+        ["旧词条范围重叠，未覆盖文件。请先检查单词本中的词条格式。"] = "Existing entry ranges overlap. The file was not overwritten. Check the entry format in the notebook.",
         ["Ctrl+Alt+D / Ctrl+Alt+T  划词翻译\nCtrl+Alt+S  截图翻译\nCtrl+Alt+W  收藏单词\nCtrl+Alt+R  显示 / 隐藏主窗口\n单击托盘图标打开主界面。取词时先显示轻量弹窗，再继续后台翻译。"] = "Ctrl+Alt+D / Ctrl+Alt+T  Translate selection\nCtrl+Alt+S  Capture & translate\nCtrl+Alt+W  Save word\nCtrl+Alt+R  Show / hide main window\nClick the tray icon to open the main window. The popup appears before selection capture and translation finish.",
         ["网络连接失败，请检查网络和 Base URL。"] = "Network connection failed. Check the network and Base URL.",
         ["连接测试等待 {0} 秒后超时；模型可能排队或生成较慢，请稍后重试。"] = "Connection test timed out after {0} seconds. The model may be queued or generating slowly; retry later.",
