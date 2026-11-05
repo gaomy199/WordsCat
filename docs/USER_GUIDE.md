@@ -1,6 +1,6 @@
 # WordsCat user guide
 
-Version **0.3.15** · Windows 11
+Version **0.3.16** · Windows 11
 
 WordsCat translates short Chinese or English selections and saves reviewed vocabulary to Markdown notebooks.
 
@@ -10,7 +10,7 @@ Download a `WordsCat-VERSION-win-x64.zip` asset from [GitHub Releases](https://g
 
 When packaging locally, the ready-to-run ZIP is written under `dist/`, with its checksum in `dist/SHA256SUMS.txt`. The default `publish/` folder contains the framework-dependent development build.
 
-Version 0.3.15 is built locally as `publish/WordsCat.exe`. No new ZIP is generated for this version. Check the chosen Release for its actual version.
+Version 0.3.16 is built locally as `publish/WordsCat.exe`. No new ZIP is generated for this version. Check the chosen Release for its actual version.
 
 On first launch without a saved key, a short, dismissible guide offers **Open settings** or **Set up later**. Open **Settings → Models & recognition → Model service** and choose **DeepSeek**, **Gitee AI · Moark**, or **Custom OpenAI-compatible**. DeepSeek retains `https://api.deepseek.com` and `deepseek-flash`. The Gitee preset uses `https://ai.gitee.com/v1`; a Gitee homepage URL is also normalized to this API path. For a custom service, enter its HTTPS Base URL.
 
@@ -28,8 +28,8 @@ Choose English or Chinese under **Appearance**. Language and appearance changes 
 
 ## Translate while reading
 
-- Select text in a reader or browser and use **Ctrl+Alt+D** or **Ctrl+Alt+T**.
-- Use **Ctrl+Alt+S** to capture text from a scanned PDF or image.
+- Select text in a reader or browser and use **Alt+X**.
+- Use **Alt+S** to capture text from a scanned PDF or image.
 - Use **Paste** or the source editor to supply text manually, then choose **Translate source**.
 
 Chinese and English are detected automatically. The left pane is the source; the right pane is the translation. **Swap** moves the initial translation into the source and detects its language again. Editing a completed source clears its previous translation and follow-up context.
@@ -56,7 +56,7 @@ After translating, type a question below the reading panes and press Enter or cl
 
 ## Save vocabulary
 
-Select a word or phrase in the source and choose **Save word** (or **Ctrl+Alt+W**). Review its editable fields and the target notebook before saving. Base cards include word, lemma, part of speech, meaning, the source sentence, and its translation. Meaning lists the contextual sense first, followed by other common senses. In **Settings → Notebooks & template**, use the four switches for common word forms (enabled by default, up to 3), IPA, AI examples with translations, and common collocations (the last three are disabled by default). Each word form has its spelling, part of speech and meaning; for generalizable, examples include generalize, generalization and generalized. IPA follows the lemma and precedes part of speech in the editor and standard Markdown. AI examples never replace the verified source sentence. Changes affect new entries. Old switch values migrate to the word-forms switch. Legacy contextual-meaning labels update in memory. Custom inline layouts, template files and saved notes are preserved.
+Select a word or phrase in the source and choose **Save word** (or **Alt+W**). Review its editable fields and the target notebook before saving. Base cards include word, lemma, part of speech, meaning, the source sentence, and its translation. Meaning lists the contextual sense first, followed by other common senses. In **Settings → Notebooks & template**, use the four switches for common word forms (enabled by default, up to 3), IPA, AI examples with translations, and common collocations (the last three are disabled by default). Each word form has its spelling, part of speech and meaning; for generalizable, examples include generalize, generalization and generalized. IPA follows the lemma and precedes part of speech in the editor and standard Markdown. AI examples never replace the verified source sentence. Changes affect new entries. Old switch values migrate to the word-forms switch. Legacy contextual-meaning labels update in memory. Custom inline layouts, template files and saved notes are preserved.
 
 The editor offers **Add IPA**, **AI examples** and **Add collocations** before **Cancel**. Each button adds and fills only the chosen fields for the current entry, retaining your other edits. These actions do not change the settings defaults or template file; initial automatic enrichment still follows the defaults. Review the new fields and Markdown before saving.
 

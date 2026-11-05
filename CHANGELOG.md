@@ -4,6 +4,12 @@
 
 - Refresh the public README with download/setup steps, keyboard shortcuts, developer checks, output-directory guidance and license links. Move temporary working-tree/publication status into project records; keep the English entry documentation and prominent Chinese guide link. Documentation only; application version remains 0.3.7.
 
+## 0.3.16 · 2026-11-05 · Uncommitted
+
+- Change global shortcuts to Alt+X for selection translation, Alt+S for capture translation and Alt+W for vocabulary. Remove the old Ctrl+Alt+D/T/S/W bindings and retain Ctrl+Alt+R for the main window.
+- Centralize action IDs, modifiers, keys and captions in AppHotkeys; registration/unregistration, menu labels, settings help, tray text and capture guidance derive from the same definitions. Keep no-repeat behavior and registration-conflict reporting. Custom shortcut editing and persistence remain unimplemented.
+- Update publish/ only; no tests, check scripts, UI inspection, model requests, ZIP packaging, commit or upload, as requested.
+
 ## 0.3.15 · 2026-11-05 · Uncommitted
 
 - Change the duplicate-word confirmation: Yes replaces matching entries in the selected notebook with the current reviewed entry; No returns to editing. Replace only identified card/legacy-section ranges using deterministic code, retain unrelated text and support existing backup/undo and exclusive write locking. Refuse unsafe entry boundaries.

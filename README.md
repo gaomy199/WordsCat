@@ -52,9 +52,9 @@ The key field is masked and opens empty. Leaving it blank preserves the saved ke
 
 | Shortcut | Action |
 | --- | --- |
-| `Ctrl+Alt+D` | Translate selected text |
-| `Ctrl+Alt+S` | Capture and translate |
-| `Ctrl+Alt+W` | Save vocabulary |
+| `Alt+X` | Translate selected text |
+| `Alt+S` | Capture and translate |
+| `Alt+W` | Save vocabulary |
 | `Ctrl+Alt+R` | Show or hide the main window |
 
 Before upgrading, exit the old app and preserve its `Data/` folder and Markdown notebooks. See the [English guide](docs/USER_GUIDE.md) or [中文使用说明](docs/USER_GUIDE.zh-CN.md) for detailed usage.

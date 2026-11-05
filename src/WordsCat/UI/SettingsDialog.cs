@@ -49,6 +49,7 @@ internal sealed class SettingsDialog : Form
     private readonly Func<string, bool> confirmHistoryReduction;
     private readonly NumericUpDown historyLimit = new() { Minimum = 0, Maximum = 1000, Dock = DockStyle.Fill, Font = Ui.Font() };
     private readonly Label historyNotice = Ui.Label("", false, 9);
+    private readonly Label hotkeyNotice = Ui.Label("", false, 9);
 
     public SettingsDialog(AppConfig config, Action<AppConfig>? applyAppearance = null, bool useCredentials = true, ReadingHistory? historyStore = null, Func<string, bool>? confirmHistoryReduction = null, Action<string>? applyLanguage = null, ICredentialVault? credentialVault = null, IConnectionTester? connectionTester = null)
     {
@@ -135,7 +136,7 @@ internal sealed class SettingsDialog : Form
         historyLimit.ValueChanged += (_, _) => UpdateHistoryNotice(); UpdateHistoryNotice();
         AddField(rp, "翻译要求", instruction, 112); AddField(rp, "当前阅读术语表（每行一条，例如：robustness = 稳健性）", glossary, 112);
         AddControl(rp, Ui.Row(floating, startup), 42);
-        AddNote(rp, "Ctrl+Alt+D / Ctrl+Alt+T  划词翻译\nCtrl+Alt+S  截图翻译\nCtrl+Alt+W  收藏单词\nCtrl+Alt+R  显示 / 隐藏主窗口\n单击托盘图标打开主界面。取词时先显示轻量弹窗，再继续后台翻译。", 130);
+        hotkeyNotice.Text = AppHotkeys.HelpText; AddControl(rp, hotkeyNotice, 130);
         root.Controls.Add(Ui.Card(tabs), 0, 1);
         var actions = Ui.Row(Ui.Button("保存设置", Save, true, 120), Ui.Button("取消", () => Close(), false, 90)); actions.Padding = new Padding(0, 12, 0, 0);
         root.Controls.Add(actions, 0, 2);
@@ -162,7 +163,7 @@ internal sealed class SettingsDialog : Form
         refreshingChoices = true;
         try { foreach (SoftComboBox choice in new[] { provider, engine, theme, language }) choice.RefreshLocalizedItems(); }
         finally { refreshingChoices = false; }
-        UpdateHistoryNotice(); RefreshServiceText();
+        UpdateHistoryNotice(); RefreshServiceText(); hotkeyNotice.Text = AppHotkeys.HelpText;
         applyLanguage?.Invoke(value);
     }
     void UpdateHistoryNotice()

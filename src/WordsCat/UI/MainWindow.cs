@@ -49,6 +49,7 @@ internal sealed class MainWindow : Form
     private string sessionTranslation = "";
     private string sessionDirection = "";
     private readonly List<string> hotkeyFailures = [];
+    private readonly List<(ToolStripItem Item, HotkeyAction Action)> hotkeyMenuItems = [];
 
     public MainWindow(AppConfig config, bool previewMode, bool offlinePreview = false, IModelService? modelService = null, ICredentialVault? credentialVault = null)
     {
@@ -135,18 +136,18 @@ internal sealed class MainWindow : Form
         outer.Controls.Add(HistoryPanel(), 0, 0); outer.Controls.Add(root, 1, 0); Controls.Add(outer);
 
         menu = new ContextMenuStrip { Font = Ui.Font(10), ShowImageMargin = false };
-        AddMenu("划词翻译          Ctrl+Alt+D", async () => await CaptureTextAsync());
-        AddMenu("截图翻译          Ctrl+Alt+S", async () => await CaptureImageAsync());
-        AddMenu("收藏单词          Ctrl+Alt+W", SaveWord);
+        AddHotkeyMenu(HotkeyAction.TranslateSelection, async () => await CaptureTextAsync());
+        AddHotkeyMenu(HotkeyAction.CaptureImage, async () => await CaptureImageAsync());
+        AddHotkeyMenu(HotkeyAction.SaveWord, SaveWord);
         AddMenu("手动修改 / 粘贴原文", ShowMain);
         menu.Items.Add(new ToolStripSeparator()); AddMenu("打开单词本", OpenVocabulary); AddMenu("撤销最近收藏", Undo);
-        AddMenu("设置", Settings); AddMenu("显示 / 隐藏主窗口", ToggleMain);
+        AddMenu("设置", Settings); AddHotkeyMenu(HotkeyAction.ToggleMain, ToggleMain);
         AddMenu("显示 / 隐藏悬浮图标", () => { config.ShowFloating = !floating!.Visible; if (config.ShowFloating) floating.Show(); else floating.Hide(); TrySaveConfig(); });
         menu.Items.Add(new ToolStripSeparator()); AddMenu("退出单词猫", Quit);
         floating = new FloatingDock(menu, config);
         UiText.Apply(floating);
         floating.PositionSaved += p => { config.FloatingX = p.X; config.FloatingY = p.Y; TrySaveConfig(); };
-        tray = new NotifyIcon { Icon = dockIcon, Text = UiText.T("单词猫 WordsCat · Ctrl+Alt+S 截图翻译"), Visible = true, ContextMenuStrip = menu };
+        tray = new NotifyIcon { Icon = dockIcon, Text = AppHotkeys.TrayText, Visible = true, ContextMenuStrip = menu };
         Ui.ApplyTheme(menu);
         UiText.ApplyMenu(menu);
         tray.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) ShowMain(); };
@@ -306,7 +307,8 @@ internal sealed class MainWindow : Form
         source.Text = nextSource; sourceReading.ClearTransientContent();
         SetStatus("译文已放入左侧，已自动识别语言，可重新翻译。");
     }
-    void AddMenu(string text, Action action) => menu.Items.Add(text, null, (_, _) => { if (!busy && !dialogOpen) action(); else SetStatus("请先完成或取消当前操作。"); });
+    ToolStripItem AddMenu(string text, Action action) => menu.Items.Add(text, null, (_, _) => { if (!busy && !dialogOpen) action(); else SetStatus("请先完成或取消当前操作。"); });
+    void AddHotkeyMenu(HotkeyAction action, Action handler) => hotkeyMenuItems.Add((AddMenu(AppHotkeys.Get(action).MenuText, handler), action));
     void SetStatus(string text, bool error = false) { text = SecretRedactor.Redact(UiText.T(text)); status.Text = text; status.ForeColor = error ? Color.FromArgb(196, 110, 56) : Ui.Muted; if (popup is { IsDisposed: false }) popup.UpdateStatus(text, error); }
     void SetBusy(bool value)
     {
@@ -521,8 +523,9 @@ internal sealed class MainWindow : Form
     void RefreshLanguage(string language)
     {
         UiText.Language = language; UiText.Apply(this); UiText.ApplyMenu(menu);
+        foreach (var (item, action) in hotkeyMenuItems) item.Text = AppHotkeys.Get(action).MenuText;
         sourceReading.RefreshLanguage(); translationReading.RefreshLanguage(); UiText.Apply(floating);
-        tray.Text = UiText.T("单词猫 WordsCat · Ctrl+Alt+S 截图翻译");
+        tray.Text = AppHotkeys.TrayText;
         question.PlaceholderText = UiText.T("输入语法、句意或追问当前选区其他问题");
         UpdateDirectionLabels(); RefreshHistory();
         ApplySidebarState();
@@ -552,25 +555,25 @@ internal sealed class MainWindow : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        foreach (var (id, key, label) in new[] { (1, Keys.D, "Ctrl+Alt+D"), (2, Keys.S, "Ctrl+Alt+S"), (3, Keys.W, "Ctrl+Alt+W"), (4, Keys.R, "Ctrl+Alt+R"), (5, Keys.T, "Ctrl+Alt+T") })
-            if (!Native.RegisterHotKey(Handle, id, 0x4003, (uint)key)) hotkeyFailures.Add(label);
+        hotkeyFailures.Clear();
+        foreach (var binding in AppHotkeys.All)
+            if (!Native.RegisterHotKey(Handle, binding.Id, binding.RegistrationModifiers, (uint)binding.Key)) hotkeyFailures.Add(binding.Gesture);
     }
     protected override void WndProc(ref Message m)
     {
         if (m.Msg == Native.WM_HOTKEY && !busy && !dialogOpen)
         {
-            switch (m.WParam.ToInt32())
+            switch ((HotkeyAction)m.WParam.ToInt32())
             {
-                case 1: _ = CaptureTextAsync(); break;
-                case 5: _ = CaptureTextAsync(); break;
-                case 2: _ = CaptureImageAsync(); break;
-                case 3: SaveWord(); break;
-                case 4: ToggleMain(); break;
+                case HotkeyAction.TranslateSelection: _ = CaptureTextAsync(); break;
+                case HotkeyAction.CaptureImage: _ = CaptureImageAsync(); break;
+                case HotkeyAction.SaveWord: SaveWord(); break;
+                case HotkeyAction.ToggleMain: ToggleMain(); break;
             }
         }
         base.WndProc(ref m);
     }
-    protected override void OnHandleDestroyed(EventArgs e) { for (int i = 1; i <= 5; i++) Native.UnregisterHotKey(Handle, i); base.OnHandleDestroyed(e); }
+    protected override void OnHandleDestroyed(EventArgs e) { foreach (var binding in AppHotkeys.All) Native.UnregisterHotKey(Handle, binding.Id); base.OnHandleDestroyed(e); }
     protected override void Dispose(bool disposing)
     {
         if (disposing) { setupGuide?.Dispose(); DismissPopup(true); currentConversation.Clear(); sessionOriginal = ""; sessionTranslation = ""; tips.Dispose(); foregroundTracker.Dispose(); tray.Dispose(); floating.Dispose(); menu.Dispose(); api.Dispose(); dockIcon.Dispose(); }

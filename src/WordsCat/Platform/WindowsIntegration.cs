@@ -32,9 +32,9 @@ internal static class Native
         token.ThrowIfCancellationRequested();
         for (int i = 0; i < 35 && new[] { 0x10, 0x11, 0x12 }.Any(k => (GetAsyncKeyState(k) & 0x8000) != 0); i++) await Task.Delay(40, token);
         if (new[] { 0x10, 0x11, 0x12 }.Any(k => (GetAsyncKeyState(k) & 0x8000) != 0)) throw new InvalidOperationException("请松开 Ctrl / Alt / Shift 后再试。");
-        if (source == IntPtr.Zero || IsOurWindow(source)) throw new InvalidOperationException("请先在网页 / Zotero / WPS 中选择文字，再按 Ctrl+Alt+D。也可以手动复制后在工具中粘贴。");
+        if (source == IntPtr.Zero || IsOurWindow(source)) throw new InvalidOperationException(UiText.F("请先在网页 / Zotero / WPS 中选择文字，再按 {0}。也可以手动复制后在工具中粘贴。", AppHotkeys.Get(HotkeyAction.TranslateSelection).Gesture));
         if (GetForegroundWindow() != source) { SetForegroundWindow(source); await Task.Delay(250, token); }
-        if (GetForegroundWindow() != source) throw new InvalidOperationException("无法切回阅读器。请在原阅读器中选中文字，使用 Ctrl+Alt+D，或改用截图翻译。");
+        if (GetForegroundWindow() != source) throw new InvalidOperationException(UiText.F("无法切回阅读器。请在原阅读器中选中文字，使用 {0}，或改用截图翻译。", AppHotkeys.Get(HotkeyAction.TranslateSelection).Gesture));
         IDataObject? backup = null;
         try { backup = Clipboard.GetDataObject(); } catch { }
         var before = GetClipboardSequenceNumber();
@@ -62,7 +62,7 @@ internal static class Native
                 try { if (backup != null) Clipboard.SetDataObject(backup, true); else Clipboard.Clear(); } catch { }
             }
         }
-        if (string.IsNullOrWhiteSpace(text)) throw new InvalidOperationException("没有取得选中文字。扫描版 PDF 请用 Ctrl+Alt+S 截图翻译；也可以复制后粘贴到原文框。");
+        if (string.IsNullOrWhiteSpace(text)) throw new InvalidOperationException(UiText.F("没有取得选中文字。扫描版 PDF 请用 {0} 截图翻译；也可以复制后粘贴到原文框。", AppHotkeys.Get(HotkeyAction.CaptureImage).Gesture));
         return text;
     }
 }
