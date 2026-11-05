@@ -2,7 +2,26 @@
 
 ## Unreleased
 
+- Fix secret-guard ZIP/NuGet scanning in Windows PowerShell 5.1 by explicitly loading System.IO.Compression. Add clean-archive and malformed-archive regressions while retaining credential checks inside archives and staged blobs. Application version remains 0.3.18.
+
 - Refresh the public README with download/setup steps, keyboard shortcuts, developer checks, output-directory guidance and license links. Move temporary working-tree/publication status into project records; keep the English entry documentation and prominent Chinese guide link. Documentation only; application version remains 0.3.7.
+
+## 0.3.18 · 2026-11-05 · Uncommitted
+
+- Fix vocabulary field growth after toggling supplements off: separate the scrolling viewport from the content-height field table, clear the scroll offset during rebuilds, and retain fixed row heights and other field edits.
+- Center the closed dropdown face in its native control, tighten item heights, and vertically center the single-line follow-up input while retaining Enter-to-send.
+- Reduce reading-card subtitle space, reading tab height and document top margins in both main panes. Separate reading cards from the footer action/follow-up/status area and move that area slightly lower.
+- Reduce Chinese glyphs and punctuation from 18px to 16px in both main reading panes, including mixed-language text, while preserving English, KaTeX and compact-popup sizing. Build text spans with DOM APIs without interpreting content as HTML.
+- Add actual-window regressions for supplement toggle cycles, preserved edits/Markdown, typography in both panes, centered follow-up text and footer clearance. Synchronize older test expectations for the dedicated truncation exception and the additional Gitee provider, and wait for popup document readiness.
+- Offline build and verify.ps1 -IncludeUi pass, including the secret guard and actual desktop UI regressions; Computer Use inspection covers the main window, maximized layout, dropdown, Chinese source and supplement cancellation. Update publish/ without ZIP packaging, commit, upload, real-key access or model requests. Validation details: docs/VALIDATION-v0.3.18.md.
+
+## 0.3.17 · 2026-11-05 · Uncommitted
+
+- Make Add IPA, AI examples and Add collocations entry toggles with persistent light highlighting. A second click removes the corresponding fields and supplemental Markdown from this entry; retain other edits, settings defaults and template files. AI example/translation fields switch together.
+- Keep a manually dragged translation popup at its new location during source/translation toggles, asynchronous rendering and content/status updates. New popup instances retain the original near-selection placement.
+- Add four customizable global shortcuts under Reading preferences, chord recording, draft reset, persistence and immediate application after save. Reject duplicate bindings and report Windows registration conflicts before saving. Temporarily release the app's shortcuts while settings are open; update menus, tray and guidance from saved bindings.
+- Strengthen the shared neutral borders in both themes for buttons, editor/dropdown frames and outlined panels.
+- Build publish/ offline without compiler warnings. At the user's request, do not run tests, check scripts, UI inspection or model requests; no ZIP, commit or upload.
 
 ## 0.3.16 · 2026-11-05 · Uncommitted
 

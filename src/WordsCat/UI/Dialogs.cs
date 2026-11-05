@@ -4,6 +4,8 @@ internal sealed class WordDialog : Form
 {
     private readonly AppConfig config;
     private VocabularyTemplate template;
+    private readonly VocabularyTemplate initialTemplate;
+    private readonly HashSet<string> activeSupplements = [];
     private readonly VocabularyStore store;
     private readonly ITextModelClient api;
     private readonly Func<string> readKey;
@@ -14,6 +16,7 @@ internal sealed class WordDialog : Form
     private readonly Button saveButton;
     private readonly List<Button> supplementButtons = [];
     private readonly TableLayoutPanel form;
+    private readonly Panel fieldScroll;
     private readonly ComboBox notebookChoice = new SoftComboBox() { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = Ui.Font() };
     private CancellationTokenSource? cancellation;
     public bool Saved { get; private set; }
@@ -21,7 +24,7 @@ internal sealed class WordDialog : Form
     {
         this.config = config; this.store = store; this.api = api; this.original = original;
         this.readKey = readKey ?? (() => CredentialStore.ReadFor(config.BaseUrl));
-        template = VocabularyTemplate.Load(config.TemplateFile).WithOptions(config.Vocabulary);
+        initialTemplate = template = VocabularyTemplate.Load(config.TemplateFile).WithOptions(config.Vocabulary);
         Text = "单词猫 · 收藏生词"; Font = Ui.Font(); BackColor = Ui.Paper; AutoScaleMode = AutoScaleMode.None;
         DoubleBuffered = true;
         ClientSize = new Size(700, 740); MinimumSize = new Size(640, 580); StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
@@ -33,10 +36,13 @@ internal sealed class WordDialog : Form
         var previewPage = new TabPage("Markdown 预览") { BackColor = Ui.Surface, Padding = new Padding(12) };
         preview.ReadOnly = true; preview.Font = new Font("Consolas", 10); previewPage.Controls.Add(preview);
         tabs.TabPages.AddRange([editPage, previewPage]);
-        form = new TableLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, ColumnCount = 2, RowCount = 0, Padding = new Padding(0, 0, 16, 0) };
+        fieldScroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(0, 0, 16, 0), Name = "wordFieldScroll" };
+        // The scroll viewport must not stretch the final field into leftover virtual space.
+        form = new TableLayoutPanel { Dock = DockStyle.Top, ColumnCount = 2, RowCount = 0, Margin = Padding.Empty };
         form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 135)); form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        fieldScroll.Controls.Add(form);
         RebuildFields(false);
-        editPage.Controls.Add(form);
+        editPage.Controls.Add(fieldScroll);
         editors["word"].Text = word;
         var notebookRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         notebookRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80)); notebookRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -55,16 +61,19 @@ internal sealed class WordDialog : Form
         FormClosing += (_, _) => cancellation?.Cancel();
         Ui.FinishLayout(this);
     }
-    WordEntry Entry() => new() { Values = editors.ToDictionary(kv => kv.Key, kv => kv.Value.Text.Trim()) };
+    WordEntry Entry() => new() { Values = editors.Where(pair => template.Fields.Any(field => field.Key == pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value.Text.Trim()) };
     void UpdatePreview() { if (preview != null) preview.Text = template.Render(Entry()).Replace("\n", Environment.NewLine); }
     void RebuildFields(bool scaled)
     {
         float scale = scaled ? DeviceDpi / 96f : 1f;
+        fieldScroll.SuspendLayout(); fieldScroll.AutoScrollPosition = Point.Empty;
         form.SuspendLayout();
         try
         {
             var labels = form.Controls.OfType<Label>().ToArray();
             form.Controls.Clear(); foreach (var label in labels) label.Dispose();
+            foreach (var key in editors.Keys.Where(key => !template.Fields.Any(field => field.Key == key)).ToArray())
+            { editors[key].Dispose(); editors.Remove(key); }
             form.RowStyles.Clear(); form.RowCount = 0;
             foreach (var field in template.Fields)
             {
@@ -81,22 +90,40 @@ internal sealed class WordDialog : Form
                 }
                 form.Controls.Add(box, 1, row);
             }
+            form.Height = (int)Math.Ceiling(form.RowStyles.Cast<RowStyle>().Sum(row => row.Height));
         }
-        finally { form.ResumeLayout(true); }
+        finally { form.ResumeLayout(true); fieldScroll.ResumeLayout(true); }
         UiText.Apply(form);
     }
     Button SupplementButton(string text, VocabularyOptions options, int width)
     {
-        var button = Ui.Button(text, async () =>
+        var keys = options.Fields().Select(field => field.Key).ToArray();
+        string group = keys[0];
+        if (template.Fields.Any(field => keys.Contains(field.Key))) activeSupplements.Add(group);
+        Button button = Ui.Button(text, () => { }, false, width);
+        Ui.SetButtonSelected(button, activeSupplements.Contains(group));
+        button.Click += async (_, _) =>
         {
             if (cancellation != null) return;
-            if (string.IsNullOrWhiteSpace(editors["word"].Text)) { status.Text = "请先填写要收藏的单词或词组。"; return; }
-            // The expanded template belongs only to this dialog; defaults and files stay intact.
-            template = template.WithOptions(options); RebuildFields(true); UpdatePreview();
-            var keys = options.Fields().Select(field => field.Key).ToArray();
+            bool removing = activeSupplements.Contains(group);
+            if (!removing && string.IsNullOrWhiteSpace(editors["word"].Text)) { status.Text = "请先填写要收藏的单词或词组。"; return; }
+            if (removing) activeSupplements.Remove(group); else activeSupplements.Add(group);
+            var selected = new VocabularyOptions
+            {
+                IncludeWordForms = false,
+                IncludePhonetics = activeSupplements.Contains("phonetic"),
+                GenerateExamples = activeSupplements.Contains("generated_example"),
+                IncludeCollocations = activeSupplements.Contains("collocations")
+            };
+            var optionalKeys = new VocabularyOptions { IncludeWordForms = false, IncludePhonetics = true, GenerateExamples = true, IncludeCollocations = true }.Fields().Select(field => field.Key);
+            var enabledKeys = selected.Fields().Select(field => field.Key).ToHashSet();
+            // Rebuild only this dialog's template, including removal from Markdown preview/save.
+            template = initialTemplate.WithOptions(selected).WithoutFields(optionalKeys.Where(key => !enabledKeys.Contains(key)).ToArray());
+            RebuildFields(true); UpdatePreview(); Ui.SetButtonSelected(button, !removing);
+            if (removing) { status.Text = "已取消本次词条的所选补充内容。"; return; }
             await FillAsync(keys);
-            if (!IsDisposed && editors.TryGetValue(keys[0], out var field)) form.ScrollControlIntoView(field);
-        }, false, width);
+            if (!IsDisposed && editors.TryGetValue(keys[0], out var field)) fieldScroll.ScrollControlIntoView(field);
+        };
         supplementButtons.Add(button); return button;
     }
     async Task FillAsync(IReadOnlyCollection<string>? selectedKeys = null)

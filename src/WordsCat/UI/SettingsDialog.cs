@@ -50,10 +50,13 @@ internal sealed class SettingsDialog : Form
     private readonly NumericUpDown historyLimit = new() { Minimum = 0, Maximum = 1000, Dock = DockStyle.Fill, Font = Ui.Font() };
     private readonly Label historyNotice = Ui.Label("", false, 9);
     private readonly Label hotkeyNotice = Ui.Label("", false, 9);
+    private readonly Dictionary<HotkeyAction, HotkeyEditor> hotkeyEditors = [];
+    private readonly Func<IReadOnlyList<HotkeyBinding>, IReadOnlyList<string>>? findHotkeyConflicts;
 
-    public SettingsDialog(AppConfig config, Action<AppConfig>? applyAppearance = null, bool useCredentials = true, ReadingHistory? historyStore = null, Func<string, bool>? confirmHistoryReduction = null, Action<string>? applyLanguage = null, ICredentialVault? credentialVault = null, IConnectionTester? connectionTester = null)
+    public SettingsDialog(AppConfig config, Action<AppConfig>? applyAppearance = null, bool useCredentials = true, ReadingHistory? historyStore = null, Func<string, bool>? confirmHistoryReduction = null, Action<string>? applyLanguage = null, ICredentialVault? credentialVault = null, IConnectionTester? connectionTester = null, Func<IReadOnlyList<HotkeyBinding>, IReadOnlyList<string>>? findHotkeyConflicts = null)
     {
         this.config = config;
+        this.findHotkeyConflicts = findHotkeyConflicts;
         credentials = credentialVault ?? (useCredentials ? new WindowsCredentialVault() : new DisabledCredentialVault());
         this.connectionTester = connectionTester ?? new ConnectionTester();
         allowConnectionTest = useCredentials || connectionTester != null;
@@ -136,7 +139,19 @@ internal sealed class SettingsDialog : Form
         historyLimit.ValueChanged += (_, _) => UpdateHistoryNotice(); UpdateHistoryNotice();
         AddField(rp, "翻译要求", instruction, 112); AddField(rp, "当前阅读术语表（每行一条，例如：robustness = 稳健性）", glossary, 112);
         AddControl(rp, Ui.Row(floating, startup), 42);
-        hotkeyNotice.Text = AppHotkeys.HelpText; AddControl(rp, hotkeyNotice, 130);
+        AddControl(rp, Ui.Label("自定义快捷键", true, 11), 32);
+        foreach (var binding in AppHotkeys.Resolve(config.Hotkeys))
+        {
+            var editor = new HotkeyEditor(binding);
+            hotkeyEditors.Add(binding.Action, editor);
+            AddField(rp, binding.CaptionKey, editor);
+        }
+        AddControl(rp, Ui.Row(Ui.Button("恢复默认快捷键", () =>
+        {
+            foreach (var binding in AppHotkeys.Defaults) hotkeyEditors[binding.Action].Text = binding.Gesture;
+        }, false, 160)), 44);
+        hotkeyNotice.Text = "点击方框后按下新的组合键，须包含 Ctrl 或 Alt；保存后生效。Tab 切换下一项，取消则保留原设置。";
+        AddControl(rp, hotkeyNotice, 70);
         root.Controls.Add(Ui.Card(tabs), 0, 1);
         var actions = Ui.Row(Ui.Button("保存设置", Save, true, 120), Ui.Button("取消", () => Close(), false, 90)); actions.Padding = new Padding(0, 12, 0, 0);
         root.Controls.Add(actions, 0, 2);
@@ -163,7 +178,8 @@ internal sealed class SettingsDialog : Form
         refreshingChoices = true;
         try { foreach (SoftComboBox choice in new[] { provider, engine, theme, language }) choice.RefreshLocalizedItems(); }
         finally { refreshingChoices = false; }
-        UpdateHistoryNotice(); RefreshServiceText(); hotkeyNotice.Text = AppHotkeys.HelpText;
+        UpdateHistoryNotice(); RefreshServiceText();
+        foreach (var binding in AppHotkeys.Defaults) hotkeyEditors[binding.Action].AccessibleName = UiText.T(binding.CaptionKey);
         applyLanguage?.Invoke(value);
     }
     void UpdateHistoryNotice()
@@ -295,6 +311,7 @@ internal sealed class SettingsDialog : Form
         c.HistoryLimit = (int)historyLimit.Value;
         c.Vocabulary = new VocabularyOptions { IncludeWordForms = wordForms.Checked, IncludePhonetics = phonetics.Checked, GenerateExamples = examples.Checked, IncludeCollocations = collocations.Checked };
         c.UiLanguage = Value(language);
+        c.Hotkeys = hotkeyEditors.ToDictionary(pair => pair.Key.ToString(), pair => pair.Value.Text);
         notebooks.EndEdit();
         c.Notebooks = []; c.DefaultNotebookId = ""; c.ActiveNotebookId = config.ActiveNotebookId;
         foreach (DataGridViewRow row in notebooks.Rows)
@@ -430,6 +447,12 @@ internal sealed class SettingsDialog : Form
         {
             SecretRedactor.Register(apiKey.Text);
             var c = Proposed();
+            var conflicts = findHotkeyConflicts?.Invoke(AppHotkeys.Resolve(c.Hotkeys));
+            if (conflicts is { Count: > 0 })
+            {
+                UiText.Show(this, UiText.F("以下快捷键无法注册，可能被其他软件或系统占用：{0}。请修改后保存。", string.Join(", ", conflicts)), "自定义快捷键", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             if (c.HistoryLimit < config.HistoryLimit)
             {
                 int count = historyStore?.RemovalCount(c.HistoryLimit) ?? 0;
@@ -452,7 +475,7 @@ internal sealed class SettingsDialog : Form
             config.Notebooks = c.Notebooks; config.DefaultNotebookId = c.DefaultNotebookId; config.ActiveNotebookId = c.ActiveNotebookId; config.TargetFile = c.TargetFile;
             config.TemplateFile = c.TemplateFile; config.TranslationInstruction = c.TranslationInstruction; config.Glossary = c.Glossary;
             config.ShowFloating = c.ShowFloating; config.ShowOnStartup = c.ShowOnStartup; config.ThemeMode = c.ThemeMode; config.AccentColor = c.AccentColor; config.BackgroundBrightness = c.BackgroundBrightness; config.LogoFile = c.LogoFile;
-            config.HistoryLimit = c.HistoryLimit; config.Vocabulary = c.Vocabulary;
+            config.HistoryLimit = c.HistoryLimit; config.Vocabulary = c.Vocabulary; config.Hotkeys = c.Hotkeys;
             config.UiLanguage = c.UiLanguage;
             DialogResult = DialogResult.OK; Close();
         }

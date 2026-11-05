@@ -108,6 +108,47 @@ internal static class VocabularySelfTests
         Check(!editors.ContainsKey("wordField_other_meanings") && Children(dialog).OfType<Label>().Any(l => l.Text == UiText.T("释义 *")), "real unified meaning editor");
         Check(Children(dialog).OfType<TextBox>().Any(t => t.Name == "wordField_word_forms") && Children(dialog).OfType<TextBox>().Any(t => t.Name == "wordField_generated_example"), "enabled fields appear in real editor");
         dialog.Close();
+        await CheckSupplementLayoutAsync();
+    }
+    static async Task CheckSupplementLayoutAsync()
+    {
+        var cfg = new AppConfig { TemplateFile = AppPaths.DefaultTemplate };
+        cfg.NormalizeNotebooks();
+        using var dialog = new WordDialog(cfg, new VocabularyStore(), new LocalWordClient(), "segment", "Algorithms segment images.", () => SecuritySelfTests.FakeCredential);
+        dialog.Show(); await Task.Delay(80);
+        TextBox Field(string key) => Children(dialog).OfType<TextBox>().Single(t => t.Name == "wordField_" + key);
+        Button Toggle(string caption) => Children(dialog).OfType<Button>().Single(b => b.Text == UiText.T(caption));
+        int initialHeight = Field("word_forms").Height;
+        Field("meaning").Text = "preserved manual edit";
+        Field("word_forms").Text = "segmentation [n.] 分割\nsegmented [adj.] 分段的";
+        var viewport = Children(dialog).OfType<Panel>().Single(p => p.Name == "wordFieldScroll");
+        foreach (string[] group in new[] {
+            new[] { "补全音标" }, new[] { "AI 例句", "补充常见搭配" },
+            new[] { "补全音标", "AI 例句", "补充常见搭配" } })
+        {
+            foreach (string caption in group) { Toggle(caption).PerformClick(); await Task.Delay(50); }
+            viewport.ScrollControlIntoView(Field("word_forms"));
+            foreach (string caption in group) { Toggle(caption).PerformClick(); await Task.Delay(30); }
+            Check(Field("word_forms").Height == initialHeight, "last field retains its initial height after one/two/all supplements are removed");
+            Check(Field("meaning").Text == "preserved manual edit" && Field("word_forms").Text.Contains("segmented"), "supplement toggles preserve other edits");
+            int expectedHeight = (int)Math.Ceiling(((TableLayoutPanel)Field("word_forms").Parent!).RowStyles.Cast<RowStyle>().Sum(row => row.Height));
+            Check(Field("word_forms").Parent!.Height == expectedHeight, "scrolled table shrinks to remaining rows without stale virtual whitespace");
+            Check(!Children(dialog).OfType<TextBox>().Any(t => t.Name is "wordField_phonetic" or "wordField_generated_example" or "wordField_collocations"), "disabled supplement editors are removed");
+            Children(dialog).OfType<ThemedTabs>().Single().SelectedIndex = 1;
+            await Task.Delay(20);
+            var markdown = Children(dialog).OfType<TextBox>().Single(t => t.ReadOnly).Text;
+            Check(!markdown.Contains("**音标**") && !markdown.Contains("**AI 例句**") && !markdown.Contains("**常见搭配**"), "disabled supplements absent from Markdown preview");
+            Children(dialog).OfType<ThemedTabs>().Single().SelectedIndex = 0;
+        }
+        dialog.Close();
+    }
+    sealed class LocalWordClient : ITextModelClient
+    {
+        public Task<ApiResult> CompleteAsync(ModelRequestOptions options, string key, IReadOnlyList<ChatMessage> messages, bool json, CancellationToken token)
+        {
+            Check(key == SecuritySelfTests.FakeCredential, "layout regression uses fixed fake credential");
+            return Task.FromResult(new ApiResult(JsonSerializer.Serialize(new { meaning = "分割", word_forms = "segmentation [n.] 分割", phonetic = "/test/", generated_example = "A segment is missing.", generated_example_translation = "缺少一部分。", collocations = "a segment of — 一部分" }), 1, 1));
+        }
     }
     sealed class NeverCalledClient : ITextModelClient
     {

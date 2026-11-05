@@ -1,6 +1,6 @@
 # WordsCat user guide
 
-Version **0.3.16** · Windows 11
+Version **0.3.18** · Windows 11
 
 WordsCat translates short Chinese or English selections and saves reviewed vocabulary to Markdown notebooks.
 
@@ -10,7 +10,7 @@ Download a `WordsCat-VERSION-win-x64.zip` asset from [GitHub Releases](https://g
 
 When packaging locally, the ready-to-run ZIP is written under `dist/`, with its checksum in `dist/SHA256SUMS.txt`. The default `publish/` folder contains the framework-dependent development build.
 
-Version 0.3.16 is built locally as `publish/WordsCat.exe`. No new ZIP is generated for this version. Check the chosen Release for its actual version.
+Version 0.3.18 is built locally as `publish/WordsCat.exe`. No new ZIP is generated for this version. Check the chosen Release for its actual version.
 
 On first launch without a saved key, a short, dismissible guide offers **Open settings** or **Set up later**. Open **Settings → Models & recognition → Model service** and choose **DeepSeek**, **Gitee AI · Moark**, or **Custom OpenAI-compatible**. DeepSeek retains `https://api.deepseek.com` and `deepseek-flash`. The Gitee preset uses `https://ai.gitee.com/v1`; a Gitee homepage URL is also normalized to this API path. For a custom service, enter its HTTPS Base URL.
 
@@ -32,13 +32,19 @@ Choose English or Chinese under **Appearance**. Language and appearance changes 
 - Use **Alt+S** to capture text from a scanned PDF or image.
 - Use **Paste** or the source editor to supply text manually, then choose **Translate source**.
 
+These are the default shortcuts. Under **Settings → Reading preferences**, click a shortcut box and press a new combination containing Ctrl or Alt (optionally Shift). Customize selection translation, capture, vocabulary, and show/hide main window. Save to apply immediately and retain it after restart; Cancel keeps the saved bindings. **Restore default shortcuts** resets the draft. Duplicate or unavailable combinations prevent saving and show a message. The app temporarily releases its global shortcuts while settings are open so they can be recorded.
+
 Chinese and English are detected automatically. The left pane is the source; the right pane is the translation. **Swap** moves the initial translation into the source and detects its language again. Editing a completed source clears its previous translation and follow-up context.
+
+The main reading panes use 16px for Chinese characters and punctuation, while English stays at 18px and formulas retain their original size. Both panes use compact reading tabs, with a separate gap before the action and follow-up area. The follow-up box is a vertically centered single line; Enter sends the question.
 
 Capture results first appear in a lightweight popup near the selection. Open the main window from that popup when you need more space. The source tabs let you read formulas, edit text, and inspect the current capture. Captures are transient and are not stored in translation history.
 
 Selection shortcuts show the popup before text capture and translation finish. Native text remains visible while the formula reader initializes. Click the system tray icon once with the left mouse button to open the main window after hiding it; right-click still opens the tray menu. Window changes skip unchanged formula renders and reduce repainting.
 
 The popup renders source and translation with the same local KaTeX reader as the main window. Choose **Show source**, then **Show translation** to switch back; select text in the reading area to copy it. New selections and errors clear the prior source/toggle state. Missing WebView2 falls back to selectable plain text.
+
+Drag the popup title to move it. It keeps that position while switching source/translation or updating content, until the popup closes. A new popup opened by selection or capture uses the original near-selection placement rules.
 
 Select a word in either popup view and choose **Save word**. The editor starts with that selection and uses the recognized source as context for the existing automatic enrichment. The popup is temporarily hidden while editing and returns when the editor closes; the main window stays hidden. A saved API key is required for model enrichment; manual editing remains available.
 
@@ -58,7 +64,7 @@ After translating, type a question below the reading panes and press Enter or cl
 
 Select a word or phrase in the source and choose **Save word** (or **Alt+W**). Review its editable fields and the target notebook before saving. Base cards include word, lemma, part of speech, meaning, the source sentence, and its translation. Meaning lists the contextual sense first, followed by other common senses. In **Settings → Notebooks & template**, use the four switches for common word forms (enabled by default, up to 3), IPA, AI examples with translations, and common collocations (the last three are disabled by default). Each word form has its spelling, part of speech and meaning; for generalizable, examples include generalize, generalization and generalized. IPA follows the lemma and precedes part of speech in the editor and standard Markdown. AI examples never replace the verified source sentence. Changes affect new entries. Old switch values migrate to the word-forms switch. Legacy contextual-meaning labels update in memory. Custom inline layouts, template files and saved notes are preserved.
 
-The editor offers **Add IPA**, **AI examples** and **Add collocations** before **Cancel**. Each button adds and fills only the chosen fields for the current entry, retaining your other edits. These actions do not change the settings defaults or template file; initial automatic enrichment still follows the defaults. Review the new fields and Markdown before saving.
+The editor offers **Add IPA**, **AI examples** and **Add collocations** before **Cancel**. Click once to add and fill the chosen fields; the button stays lightly highlighted. Click again to remove that supplement from the editor, Markdown preview and saved entry; the button returns to its neutral color. AI examples and their translations switch together. Fields already present from defaults or the template start highlighted. Other edits are retained. These actions do not change the settings defaults or template file; initial automatic enrichment still follows the defaults. Review the new fields and Markdown before saving.
 
 The app writes deterministic Markdown and checks duplicates only in the selected notebook. For a duplicate, **Yes** replaces its existing entries with the current entry; **No** returns to editing. Other words remain intact. Backups and undo with external-edit checks apply to replacements too. Unsafe entry boundaries prevent replacement. Switching the current destination does not replace the default notebook. Your notebooks remain normal Markdown files usable in Obsidian or another editor.
 

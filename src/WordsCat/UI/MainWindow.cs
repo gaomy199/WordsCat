@@ -59,6 +59,7 @@ internal sealed class MainWindow : Form
         this.config = config;
         this.offlinePreview = offlinePreview;
         config.NormalizeNotebooks();
+        AppHotkeys.Configure(config);
         UiText.Language = config.UiLanguage;
         history = new ReadingHistory(AppPaths.DataDirectory);
         try { history.Trim(config.HistoryLimit); } catch (IOException) { } catch (UnauthorizedAccessException) { }
@@ -67,7 +68,7 @@ internal sealed class MainWindow : Form
         AutoScaleMode = AutoScaleMode.None; StartPosition = FormStartPosition.CenterScreen; KeyPreview = true;
         ClientSize = new Size(1380, 780); MinimumSize = new Size(1140, 680); ShowInTaskbar = true;
         dockIcon = Ui.CreateAppIcon(); Icon = dockIcon;
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(24, 18, 24, 16), ColumnCount = 1, RowCount = 7 };
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(24, 18, 24, 10), ColumnCount = 1, RowCount = 7 };
         foreach (var height in new[] { 80, 46, 46 }) root.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         foreach (var height in new[] { 46, 46, 36 }) root.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
@@ -108,7 +109,7 @@ internal sealed class MainWindow : Form
         notebookChoice.SelectedIndexChanged += (_, _) => { if (notebookChoice.SelectedItem is NotebookTarget n) { config.ActiveNotebookId = n.Id; tips.SetToolTip(notebookChoice, n.File); popup?.SetNotebook(n.Name); } };
         pin.CheckedChanged += (_, _) => TopMost = pin.Checked; root.Controls.Add(metadata, 0, 2);
 
-        var split = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
+        var split = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = new Padding(0, 0, 0, 12), Name = "readingCards" };
         split.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); split.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 16)); split.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         ConfigureEditor(source, false); ConfigureEditor(translation, true);
         sourceReading = new MathReadingView(source, true); translationReading = new MathReadingView(translation, false);
@@ -124,7 +125,7 @@ internal sealed class MainWindow : Form
         follow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); follow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 116));
         follow.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         question.PlaceholderText = UiText.T("输入语法、句意或追问当前选区其他问题");
-        question.Multiline = true; question.AcceptsReturn = false; question.Margin = new Padding(0, 4, 8, 6); question.AccessibleName = "followUpQuestion";
+        question.Multiline = false; question.AcceptsReturn = false; question.Margin = new Padding(0, 4, 8, 6); question.AccessibleName = "followUpQuestion";
         var questionFrame = new FieldFrame(question) { Margin = new Padding(0, 4, 8, 6), AccessibleName = "followUpFrame" };
         follow.Controls.Add(questionFrame, 0, 0);
         var askButton = WorkButton("追问", async () => await FollowUpAsync(), false, 108);
@@ -270,7 +271,7 @@ internal sealed class MainWindow : Form
     static Control EditorCard(Label title, string subtitle, Control editor)
     {
         var p = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = Ui.Surface, Tag = "surface", Padding = new Padding(18, 12, 18, 16), ColumnCount = 1, RowCount = 3, Margin = Padding.Empty, CellBorderStyle = TableLayoutPanelCellBorderStyle.None };
-        p.RowStyles.Add(new RowStyle(SizeType.Absolute, 32)); p.RowStyles.Add(new RowStyle(SizeType.Absolute, 48)); p.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        p.RowStyles.Add(new RowStyle(SizeType.Absolute, 30)); p.RowStyles.Add(new RowStyle(SizeType.Absolute, 28)); p.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         p.Padding = new Padding(10, 4, 10, 6);
         p.Controls.Add(title, 0, 0); p.Controls.Add(Ui.Label(subtitle), 0, 1); p.Controls.Add(editor, 0, 2); return Ui.Card(p);
     }
@@ -509,8 +510,10 @@ internal sealed class MainWindow : Form
         try
         {
             ShowMain(); dialogOpen = true;
+            UnregisterHotkeys();
             int oldHistoryLimit = config.HistoryLimit;
-            using var dialog = new SettingsDialog(config, RefreshAppearance, !offlinePreview, history, applyLanguage: RefreshLanguage, credentialVault: offlinePreview && !customVault ? null : credentials); dialog.ShowDialog(this);
+            using var dialog = new SettingsDialog(config, RefreshAppearance, !offlinePreview, history, applyLanguage: RefreshLanguage, credentialVault: offlinePreview && !customVault ? null : credentials, findHotkeyConflicts: FindHotkeyConflicts); dialog.ShowDialog(this);
+            AppHotkeys.Configure(config);
             RefreshLanguage(config.UiLanguage); SetStatus("就绪");
             if (config.HistoryLimit < oldHistoryLimit) ClearSession();
             RefreshAppearance(config);
@@ -518,7 +521,11 @@ internal sealed class MainWindow : Form
             RefreshHistory();
         }
         catch (Exception ex) { Ui.Error(this, ex); }
-        finally { dialogOpen = false; }
+        finally
+        {
+            RegisterHotkeys(); dialogOpen = false;
+            if (hotkeyFailures.Count > 0) SetStatus(UiText.F("快捷键被其他软件占用：{0}。可使用悬浮菜单。", string.Join(", ", hotkeyFailures)), true);
+        }
     }
     void RefreshLanguage(string language)
     {
@@ -555,9 +562,28 @@ internal sealed class MainWindow : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
+        RegisterHotkeys();
+    }
+    void RegisterHotkeys()
+    {
         hotkeyFailures.Clear();
         foreach (var binding in AppHotkeys.All)
             if (!Native.RegisterHotKey(Handle, binding.Id, binding.RegistrationModifiers, (uint)binding.Key)) hotkeyFailures.Add(binding.Gesture);
+    }
+    void UnregisterHotkeys()
+    {
+        foreach (var binding in AppHotkeys.All) Native.UnregisterHotKey(Handle, binding.Id);
+    }
+    IReadOnlyList<string> FindHotkeyConflicts(IReadOnlyList<HotkeyBinding> bindings)
+    {
+        var failures = new List<string>();
+        try
+        {
+            foreach (var binding in bindings)
+                if (!Native.RegisterHotKey(Handle, binding.Id, binding.RegistrationModifiers, (uint)binding.Key)) failures.Add(binding.Gesture);
+        }
+        finally { foreach (var binding in bindings) Native.UnregisterHotKey(Handle, binding.Id); }
+        return failures;
     }
     protected override void WndProc(ref Message m)
     {
@@ -573,7 +599,7 @@ internal sealed class MainWindow : Form
         }
         base.WndProc(ref m);
     }
-    protected override void OnHandleDestroyed(EventArgs e) { foreach (var binding in AppHotkeys.All) Native.UnregisterHotKey(Handle, binding.Id); base.OnHandleDestroyed(e); }
+    protected override void OnHandleDestroyed(EventArgs e) { UnregisterHotkeys(); base.OnHandleDestroyed(e); }
     protected override void Dispose(bool disposing)
     {
         if (disposing) { setupGuide?.Dispose(); DismissPopup(true); currentConversation.Clear(); sessionOriginal = ""; sessionTranslation = ""; tips.Dispose(); foregroundTracker.Dispose(); tray.Dispose(); floating.Dispose(); menu.Dispose(); api.Dispose(); dockIcon.Dispose(); }

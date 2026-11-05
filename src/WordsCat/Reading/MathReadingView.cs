@@ -9,7 +9,7 @@ internal sealed class MathReadingView : UserControl
 {
     readonly WebView2 browser = new() { Dock = DockStyle.Fill };
     readonly RichTextBox editor;
-    readonly ThemedTabs tabs = new() { Dock = DockStyle.Fill };
+    readonly ThemedTabs tabs = new(34) { Dock = DockStyle.Fill };
     readonly PictureBox picture = new() { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
     readonly System.Windows.Forms.Timer refresh = new() { Interval = 180 };
     bool initialized, starting, documentReady;
@@ -25,7 +25,7 @@ internal sealed class MathReadingView : UserControl
     public MathReadingView(RichTextBox editor, bool original, bool compact = false)
     {
         this.compact = compact;
-        this.editor = editor; Dock = DockStyle.Fill;
+        this.editor = editor; Dock = DockStyle.Fill; Margin = Padding.Empty;
         DoubleBuffered = true; BackColor = Ui.Surface; browser.DefaultBackgroundColor = Ui.Surface;
         var reading = new TabPage("阅读"); reading.Controls.Add(browser);
         var raw = new TabPage(original ? "编辑原文" : "文本"); raw.Controls.Add(editor);
@@ -108,11 +108,10 @@ internal sealed class MathReadingView : UserControl
             do
             {
                 renderQueued = false;
-                string payload = ReadingContent.Payload(editor.Text);
+                string payload = ReadingContent.Payload(editor.Text, compact);
                 if (payload == renderedPayload) break;
                 SelectedText = ""; browser.DefaultBackgroundColor = Ui.Surface;
-                string size = compact ? "document.body.style.fontSize='16px';" : "";
-                await browser.ExecuteScriptAsync(size + "window.setReading(" + payload + ");");
+                await browser.ExecuteScriptAsync("window.setReading(" + payload + ");");
                 if (IsDisposed) return;
                 renderedPayload = payload;
                 if (compact && !browser.Visible)
@@ -144,5 +143,5 @@ internal sealed class MathReadingView : UserControl
 
 internal static class ReadingContent
 {
-    public static string Payload(string text) => JsonSerializer.Serialize(new { text, ink = ColorTranslator.ToHtml(Ui.Ink), surface = ColorTranslator.ToHtml(Ui.Surface) });
+    public static string Payload(string text, bool compact = false) => JsonSerializer.Serialize(new { text, compact, ink = ColorTranslator.ToHtml(Ui.Ink), surface = ColorTranslator.ToHtml(Ui.Surface) });
 }

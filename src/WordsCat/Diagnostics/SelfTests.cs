@@ -195,7 +195,7 @@ internal static class SelfTests
         catch (InvalidOperationException ex) { Check(ex.Message.Contains("401") && !ex.Message.Contains("test-api-key-not-real"), "error does not expose key"); }
         mock.Status = HttpStatusCode.OK; mock.FinishReason = "length";
         try { await client.CompleteAsync(config, "test-api-key-not-real", Prompts.Translation(config, "test"), false, CancellationToken.None); throw new Exception("truncation not rejected"); }
-        catch (InvalidDataException) { }
+        catch (ModelOutputLimitException) { }
         mock.FinishReason = "stop";
         mock.Content = JsonSerializer.Serialize(new { original = "The variables $q_1$, $p_k$ and $\\alpha_i$ are defined.", translation = "定义变量 $q_1$、$p_k$ 和 $\\alpha_i$。", uncertainty = "" });
         byte[] png;

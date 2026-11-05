@@ -1,6 +1,34 @@
 # 项目状态
 
-更新日期：2026-11-05。应用版本：**0.3.16，Alt 快捷键及统一定义**。本轮方案经用户确认，明确只更新 publish/、不运行测试或检查；不联网、不打包、不 commit、不 push。
+更新日期：2026-11-05。应用版本：**0.3.18，收藏字段高度与主界面排版修正**。最新维护修复 Windows PowerShell 5.1 下发布前密钥守卫的压缩包读取失败；不访问真实凭据或模型服务。
+
+## 2026-11-05 发布检查脚本兼容修复（版本保持 0.3.18）
+
+- 用户在 Windows PowerShell 运行 verify.ps1 -IncludeUi，前置守卫对 NuGet 和旧发布 ZIP 输出 file:0 后终止。隔离只读复现确认：只加载 System.IO.Compression.FileSystem 时，Windows PowerShell 5.1 的 ZipArchive 类型不可用（TypeNotFound），由守卫捕获为 archive-read-error；此类输出不能直接当作发现真实密钥。原先成功记录来自其他运行环境，不证明 Windows PowerShell 5.1 兼容。
+- check-secrets.ps1 显式加载 System.IO.Compression，保留全部工作区、忽略产物、包内条目、二进制及 Git index 扫描和读取失败阻断。test-secret-guard.ps1 增加新进程读取干净 ZIP/NuGet 必须成功、损坏 ZIP 必须阻断，原有合成负例继续保留；DEVELOPMENT.md 说明类型诊断和双引擎检查。
+- Windows PowerShell 5.1 与 PowerShell 7.6.5 的合成守卫回归均通过；build.ps1 -Offline 成功，无编译警告。PowerShell 7 全工作区/index 守卫零命中；Windows PowerShell 5.1 的 verify.ps1 -IncludeUi 前置守卫及全部非 UI 自测通过，报告 .test-results/84f5e21d008c4edb9ef8564a5aeb6b37/。受限启动下 UI 的 WebView2 初始化报 0x8000FFFF，正常桌面隔离重跑全部实际窗口回归通过，报告 .test-results/secret-guard-desktop-a5fd35cd10e74ebd8be1dbfb4037dac6/。
+- 首次并行的 check-source.ps1 扫描碰到上述失败 UI 进程正在变化的 WebView2 metrics 临时文件，按读取失败策略阻断；等待 UI 退出和缓存清理后串行重跑通过（158 个源码文件，全工作区/index 守卫零命中）。后续应按发布命令顺序检查，避免全工作区扫描与 UI 缓存写入同时进行。git diff --check 及旧 fixture 与 HEAD 的精确字节散列核对通过；本轮无剩余代码修复事项。
+- 本轮只修开发脚本并更新 publish/，不生成发布 ZIP、暂存、commit、push 或 tag；用户自行继续发布。未读取生产凭据、调用模型、修改用户 Data/、第三方声明或旧 fixture。
+
+## 2026-11-05 0.3.18 布局与字号修正
+
+- 收藏字段原来由 Dock=Fill 的可滚动 TableLayoutPanel 同时管理页面填充与虚拟滚动高度，移除字段后末行吸收剩余高度。现改为独立 AutoScroll Panel 与 Dock=Top 的内容表格，按绝对行高总和设置表格高度，重建前清除旧滚动偏移。单项、两项、全部补充反复开关后，常见变形行不再拉长，已有编辑与 Markdown 移除逻辑保留。
+- SoftComboBox 为闭合的只读下拉面板按整个控件高度绘制文字，避免 native ComboBoxEdit 的偏下文字区；下拉项高度改为字号加适量内边距，原生展开、键盘与可访问性保留。追问框改为原生单行，由 FieldFrame 按 PreferredHeight 居中，Enter 继续发送，外框与按钮等高。
+- 左右 EditorCard 标题/说明行从 32/48 收紧到 30/28 逻辑像素，阅读器专用页签高度从 42 降至 34，主阅读文档顶部边距从 12 降至 8 CSS px；设置和收藏页签仍沿用原高度。阅读卡片与底部操作区增加 12 逻辑像素间隔，底部外边距从 16 调至 10，使操作、追问及状态行整体稍下移并保持清楚分隔。
+- 主阅读渲染后，仅给非 KaTeX 的中文及中文标点文本创建安全 DOM span，字号为 16px（原 18px）。左右和中英混排共用规则；英文仍为 18px，公式仍为 20.7px，轻量弹窗仍为原 16px 排版。保留 textContent、可信本地资源和原公式字体，不把文字解析为 HTML。
+- 新增实际 STA 回归覆盖取消一/二/全部补充后的末行高度、总表格高度、编辑保留及 Markdown、左右中文字形/英文/公式的实际 computed style、追问文字居中及阅读/底部间距。同步既有测试中过时的截断异常类型、自定义服务选项位置和页面未就绪等待；不改变模型请求行为。
+- build.ps1 -Offline 无警告；正常桌面实际 UI 回归全部通过，报告 .test-results/layout-desktop-0.3.18-d8c5ca87bf87467bb7d5df4e1ad4e743/。Computer Use 用 .test-results/ui-review-v0.3.18/ 隔离预览目视检查普通/最大化主界面、服务预设闭合/展开、中文移至左侧、单项及全部补充开关/滚动；未发现本轮控件干涉，预览已退出。受限启动首次 WebView2 初始化失败，正常桌面后续通过。
+- 最终 verify.ps1 -IncludeUi 在正常桌面全部通过，含工作区/index 密钥守卫、离线功能及实际 UI 回归；报告 .test-results/593aa97ecf3b444fa629299c8eaac540/（UI 在 ui/ 子目录）。git diff --check 通过，fixtures/vocabulary-v0.1.json 与 HEAD 的 Git blob 散列相同。无本轮剩余功能项；未覆盖的混合 DPI 多屏和所有阅读器边界继续保留，不把本地模拟视为模型识别质量证据。详细证据见 docs/VALIDATION-v0.3.18.md。
+- 未读取真实 Key、调用模型服务、上传用户样本、修改用户 Data/、旧 fixture 或第三方许可；只更新 publish/，不生成 ZIP、不提交上传。
+
+## 2026-11-05 0.3.17 本次交互调整
+
+- 收藏「补全音标 / AI 例句 / 补充常见搭配」改为本次词条开关，开启保持主题色浅亮底及边框，再次点击移除对应编辑字段与本次 Markdown 补充并恢复中性颜色。AI 例句/译文同时切换；默认或模板已有字段时初始开启。只重建内存模板副本，保留其他字段编辑，不修改设置默认、自定义模板文件或笔记；关闭补充不发请求，再次开启重新请求所选字段。
+- 小窗通过原生拖动期间的位置变化记录本窗口已被手动定位；后续原文/译文切换、异步公式高度、状态及结果更新只调整内容高度，不再调用选区定位。收藏临时隐藏/恢复沿用同一位置。新选区创建新窗口，关闭后新窗口仍沿用原选区附近及屏幕边界定位逻辑，未引入持久位置设置。
+- 「设置 → 阅读偏好」新增四项全局快捷键录入框及恢复默认：默认 Alt+X / Alt+S / Alt+W / Ctrl+Alt+R 不变。组合含 Ctrl 或 Alt，可加 Shift；Tab/ESC 保留导航。Hotkeys 字典按稳定动作名存入原 settings.json，旧配置缺失时使用默认；取消不写配置。打开设置暂时注销本应用热键以便录入，保存前拒绝重复并探测 Windows 注册冲突，退出设置后注册已保存组合并刷新菜单、托盘、错误提示；保留 MOD_NOREPEAT、动作 ID 及 ReadDock 兼容标识。Ctrl+Q 仍是主窗本地退出快捷键，不属于这四项全局配置。
+- 共用 Ui.Border 浅色从 (218,225,232) 加深至 (159,174,187)，深色从 (65,76,87) 提亮至 (106,121,136)，覆盖同类按钮、输入/下拉外框、描边卡片等；保留强调色、选中及键盘焦点提示。中英文需求、使用指南与变更记录同步，新增 HotkeyEditor 原生控件，不增依赖。
+- build.ps1 -Offline 成功，0.3.17 已更新至 publish/，无编译警告。依用户要求未运行 verify.ps1、自动/实际窗口回归、Computer Use、检查脚本或模型请求，未新增测试；当前只有源码复核及编译结果，不将旧版验收作为本版证据。交互、快捷键注册/重启恢复、不同 DPI 和主题效果待用户实测；无其他本轮待实现项。
+- 未读取生产凭据、访问模型服务、修改用户 Data/、旧 fixtures 或第三方许可；未生成 ZIP、提交或上传。
 
 ## 2026-11-05 0.3.16 快捷键调整
 

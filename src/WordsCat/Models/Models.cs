@@ -8,6 +8,7 @@ public sealed class AppConfig
 {
     public int SchemaVersion { get; set; } = 2;
     public VocabularyOptions Vocabulary { get; set; } = new();
+    public Dictionary<string, string> Hotkeys { get; set; } = [];
     public string ModelProvider { get; set; } = "";
     public bool ServiceGuideSeen { get; set; }
     public string BaseUrl { get; set; } = ModelPresets.BaseUrl;
@@ -90,6 +91,8 @@ public sealed class AppConfig
     public void NormalizeNotebooks()
     {
         Vocabulary ??= new();
+        Hotkeys ??= [];
+        _ = AppHotkeys.Resolve(Hotkeys);
         TemplateFile = PortablePaths.Resolve(TemplateFile);
         if (!string.IsNullOrWhiteSpace(LogoFile)) LogoFile = PortablePaths.Resolve(LogoFile);
         BaseUrl = ModelPresets.NormalizeBaseUrl(BaseUrl);
@@ -243,6 +246,20 @@ public sealed class VocabularyTemplate
         return copy;
     }
     private static string FieldLine(FieldSpec field) => "- **" + field.Label + "**：{{" + field.Key + "}}\n";
+    internal VocabularyTemplate WithoutFields(IReadOnlyCollection<string> keys)
+    {
+        var copy = JsonSerializer.Deserialize<VocabularyTemplate>(JsonSerializer.Serialize(this, AppConfig.Json), AppConfig.Json)!;
+        foreach (var field in copy.Fields.Where(field => keys.Contains(field.Key)).ToArray())
+        {
+            // Remove whole standard rows; retain surrounding custom inline formatting.
+            string placeholder = "{{" + field.Key + "}}";
+            string pattern = @"(?m)^[ \t]*-[ \t]*\*\*" + Regex.Escape(field.Label)
+                + @"\*\*[:：][ \t]*" + Regex.Escape(placeholder) + @"[ \t]*\r?$(?:\n)?";
+            copy.EntryTemplate = Regex.Replace(copy.EntryTemplate, pattern, "").Replace(placeholder, "");
+            copy.Fields.Remove(field);
+        }
+        return copy;
+    }
     private void AppendFieldLine(FieldSpec field)
     {
         int separator = EntryTemplate.LastIndexOf("\n---", StringComparison.Ordinal);

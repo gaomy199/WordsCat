@@ -57,6 +57,8 @@ The key field is masked and opens empty. Leaving it blank preserves the saved ke
 | `Alt+W` | Save vocabulary |
 | `Ctrl+Alt+R` | Show or hide the main window |
 
+These are the defaults. Customize the four global shortcuts under **Settings → Reading preferences**, then save to apply. Duplicate or unavailable combinations are reported; **Restore default shortcuts** resets the draft.
+
 Before upgrading, exit the old app and preserve its `Data/` folder and Markdown notebooks. See the [English guide](docs/USER_GUIDE.md) or [中文使用说明](docs/USER_GUIDE.zh-CN.md) for detailed usage.
 
 ## Data and credentials

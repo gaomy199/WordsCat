@@ -79,11 +79,11 @@ internal static class ServiceSetupSelfTests
             Require(key.UseSystemPasswordChar && key.Text.Length == 0 && vault.Reads == 0, "settings never reads or echoes saved key");
             await settings.TestAsync(); Require(vault.Reads == 1 && Find<Label>(settings, "connectionTestStatus").Text == UiText.T(new ConnectionTestResult(ConnectionTestKind.Success).MessageKey), "visible test uses saved fake key");
             key.Text = SecuritySelfTests.FakeCredential; await settings.TestAsync(); Require(vault.Writes == 0 && vault.Reads == 1 && handler.Calls == 1, "draft not sent or persisted");
-            key.Clear(); Find<ComboBox>(settings, "modelProvider").SelectedIndex = 1;
+            key.Clear(); SelectCustomProvider(settings);
             Find<TextBox>(settings, "modelBaseUrl").Text = "https://custom.example.invalid/v1"; Find<ComboBox>(settings, "textModel").Text = "custom-model";
             key.Text = SecuritySelfTests.FakeCredential; Find<ComboBox>(settings, "modelProvider").SelectedIndex = 0;
             Require(Find<TextBox>(settings, "modelBaseUrl").Text == ModelPresets.BaseUrl && Find<ComboBox>(settings, "textModel").Text == ModelPresets.Model && key.Text.Length == 0, "DeepSeek preset and cleared draft");
-            Find<ComboBox>(settings, "modelProvider").SelectedIndex = 1; Require(Find<TextBox>(settings, "modelBaseUrl").Text == "https://custom.example.invalid/v1", "custom draft preserved");
+            SelectCustomProvider(settings); Require(Find<TextBox>(settings, "modelBaseUrl").Text == "https://custom.example.invalid/v1", "custom draft preserved");
             var languageChoice = Children(settings).OfType<ComboBox>().Single(c => c.AccessibleName == "uiLanguage");
             key.Text = SecuritySelfTests.FakeCredential;
             languageChoice.SelectedIndex = 1;
@@ -96,7 +96,7 @@ internal static class ServiceSetupSelfTests
         { settings.Show(); Find<Button>(settings, null, "保存设置").PerformClick(); Require(settings.IsDisposed && vault.Writes == 0, "blank preserves saved key"); }
         using (var settings = new SettingsDialog(cfg, useCredentials: false, credentialVault: vault))
         {
-            settings.Show(); Find<ComboBox>(settings, "modelProvider").SelectedIndex = 1; Find<TextBox>(settings, "modelBaseUrl").Text = "https://custom.example.invalid/v1";
+            settings.Show(); SelectCustomProvider(settings); Find<TextBox>(settings, "modelBaseUrl").Text = "https://custom.example.invalid/v1";
             Find<ComboBox>(settings, "textModel").Text = "custom-model"; Find<TextBox>(settings, "modelApiKey").Text = SecuritySelfTests.FakeCredential;
             Find<Button>(settings, null, "保存设置").PerformClick(); Require(vault.Writes == 1 && cfg.ModelProvider == "custom" && cfg.VisionModel == "custom-model", "custom preset and replacement saved");
         }
@@ -119,7 +119,7 @@ internal static class ServiceSetupSelfTests
         using (var main = new MainWindow(linkConfig, true, true, credentialVault: linkVault))
         {
             main.Show(); await Task.Delay(100); bool opened = false;
-            main.BeginInvoke((Action)(() => { var settings = Application.OpenForms.OfType<SettingsDialog>().Single(); opened = Find<ComboBox>(settings, "modelProvider").Items.Count == 2; settings.Close(); }));
+            main.BeginInvoke((Action)(() => { var settings = Application.OpenForms.OfType<SettingsDialog>().Single(); opened = Find<ComboBox>(settings, "modelProvider").Items.Cast<object>().Any(item => item.ToString() == UiText.T("自定义 OpenAI 兼容")); settings.Close(); }));
             Find<Button>(Application.OpenForms.OfType<ServiceSetupGuide>().Single(), "guideOpenSettings").PerformClick();
             Require(opened && linkConfig.ServiceGuideSeen && linkVault.Reads == 0, "guide links to model service settings without reading key"); main.Hide();
         }
@@ -137,5 +137,10 @@ internal static class ServiceSetupSelfTests
         finally { UiText.Language = previousLanguage; }
     }
     static T Find<T>(Control root, string? name, string? caption = null) where T : Control => Children(root).OfType<T>().Single(c => (name == null || c.Name == name) && (caption == null || c.Text == UiText.T(caption)));
+    static void SelectCustomProvider(Control root)
+    {
+        var provider = Find<ComboBox>(root, "modelProvider");
+        provider.SelectedItem = provider.Items.Cast<object>().Single(item => item.ToString() == UiText.T("自定义 OpenAI 兼容"));
+    }
     static IEnumerable<Control> Children(Control root) { foreach (Control child in root.Controls) { yield return child; foreach (var item in Children(child)) yield return item; } }
 }

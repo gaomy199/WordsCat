@@ -73,6 +73,8 @@ The hook runs the guard before a commit. The guard scans the entire workspace (i
 
 Run `scripts/test-secret-guard.ps1` for synthetic UTF-8, UTF-16, compiled-string, ZIP-entry and staged-only negative cases. It creates a uniquely named disposable directory under `.test-results/`, never commits, proves a clean working copy cannot hide a staged finding, and removes its test files and isolated index afterward. Do not introduce broad folder exclusions or line-wide suppression comments to make the guard pass.
 
+The guard supports Windows PowerShell 5.1 and PowerShell 7. It explicitly loads both `System.IO.Compression` (for `ZipArchive`) and `System.IO.Compression.FileSystem`. Loading only FileSystem in a fresh Windows PowerShell 5.1 process leaves the ZIP types unavailable and reports archives as `file:0` read errors. Use `scripts/check-secrets.ps1 -IncludeTypes` to distinguish `archive-read-error` from credential findings without exposing values. The synthetic regression also requires clean ZIP/NuGet archives to pass and malformed archives to fail closed; run it under both engines when changing the guard.
+
 The shared `SecretRedactor` handles diagnostics, model echoes, status/error displays, settings string serialization and newly recorded history. Request Authorization headers are used only in memory for the request and are not logged; HTTP error bodies are never included in errors. The legacy developer `--vision-check` command is disabled and cannot read saved credentials or make live requests.
 
 For an offline maintenance build with already cached dependencies, use `build.ps1 -Offline`; this passes `--no-restore` and never downloads packages. Missing cached dependencies must be reported rather than fetched when networking is prohibited.

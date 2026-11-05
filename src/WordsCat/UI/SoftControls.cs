@@ -16,9 +16,18 @@ internal sealed class SoftComboBox : ComboBox
         if (m.Msg != 0x000F || !IsHandleCreated || IsDisposed || Width < 8 || Height < 8) return;
         using var graphics = Graphics.FromHwnd(Handle);
         float scale = DeviceDpi / 96f;
+        int arrowWidth = (int)(22 * scale);
+        if (DropDownStyle == ComboBoxStyle.DropDownList)
+        {
+            // Native ComboBoxEdit bounds can sit below the center of a framed selector.
+            // Paint the closed face using the entire native control's height.
+            graphics.Clear(Ui.Surface);
+            var textBounds = new Rectangle((int)(2 * scale), 0, Math.Max(1, Width - arrowWidth - (int)(4 * scale)), Height);
+            TextRenderer.DrawText(graphics, Text, Font, textBounds, Enabled ? Ui.Ink : Ui.Muted,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
+        }
         using var border = new Pen(Ui.Surface, Math.Max(2, 3 * scale));
         graphics.DrawRectangle(border, 0, 0, Width - 1, Height - 1);
-        int arrowWidth = (int)(22 * scale);
         using var background = new SolidBrush(Ui.Surface); graphics.FillRectangle(background, Width - arrowWidth, 0, arrowWidth, Height);
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
         using var pen = new Pen(Enabled ? Ui.Muted : Ui.Border, 1.5f * scale) { StartCap = LineCap.Round, EndCap = LineCap.Round };

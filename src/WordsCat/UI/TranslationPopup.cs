@@ -27,6 +27,7 @@ internal sealed class TranslationPopup : Form
     private readonly Action closeAction;
     private readonly TableLayoutPanel root;
     private bool fitting;
+    private bool userPositioned, dragging;
     private Rectangle? anchor;
     private string translatedText = "", originalText = "";
     private bool showingOriginal;
@@ -52,7 +53,13 @@ internal sealed class TranslationPopup : Form
         heading = Ui.Label((UiText.Language == "en" ? "WordsCat  ·  " : "单词猫  ·  ") + notebook, true, 10);
         var close = Ui.Button("×", Close, false, 32); close.Height = 29;
         header.Controls.Add(heading, 0, 0); header.Controls.Add(close, 1, 0);
-        heading.MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) Native.DragWindow(Handle); };
+        heading.MouseDown += (_, e) =>
+        {
+            if (e.Button != MouseButtons.Left) return;
+            dragging = true;
+            try { Native.DragWindow(Handle); }
+            finally { dragging = false; }
+        };
         root.Controls.Add(header, 0, 0);
         content.Dock = DockStyle.Fill; content.BorderStyle = BorderStyle.None; content.ReadOnly = true; content.DetectUrls = false; content.Font = Ui.Font(12); content.Margin = new Padding(0, 8, 0, 4);
         content.AccessibleName = "轻量阅读";
@@ -75,7 +82,13 @@ internal sealed class TranslationPopup : Form
     public void PlaceNear(Rectangle selection)
     {
         anchor = selection;
+        if (userPositioned) return;
         Bounds = PopupPlacement.Calculate(selection, Size, Screen.FromRectangle(selection).WorkingArea, Math.Max(8, 8 * DeviceDpi / 96));
+    }
+    protected override void OnLocationChanged(EventArgs e)
+    {
+        if (dragging) userPositioned = true;
+        base.OnLocationChanged(e);
     }
     public void SetLoading(string message)
     {
@@ -141,10 +154,10 @@ internal sealed class TranslationPopup : Form
             int statusHeight = Math.Clamp(TextRenderer.MeasureText(status.Text, status.Font, new Size(width, int.MaxValue), flags).Height + (int)(6 * scale), (int)(24 * scale), (int)(56 * scale));
             root.RowStyles[2].Height = statusHeight;
             int fixedHeight = root.Padding.Vertical + Padding.Vertical + (int)root.RowStyles[0].Height + (int)root.RowStyles[3].Height + statusHeight + content.Margin.Vertical;
-            var area = anchor.HasValue ? Screen.FromRectangle(anchor.Value).WorkingArea : Screen.FromControl(this).WorkingArea;
+            var area = !userPositioned && anchor.HasValue ? Screen.FromRectangle(anchor.Value).WorkingArea : Screen.FromControl(this).WorkingArea;
             int maximum = Math.Min((int)(330 * scale), area.Height);
             ClientSize = new Size(ClientSize.Width, Math.Min(maximum, fixedHeight + Math.Max(textHeight, (int)(32 * scale))));
-            if (anchor.HasValue) PlaceNear(anchor.Value);
+            if (!userPositioned && anchor.HasValue) PlaceNear(anchor.Value);
         }
         finally { fitting = false; }
     }

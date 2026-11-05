@@ -9,7 +9,7 @@ internal static class Ui
     public static Color Teal { get; private set; } = Color.FromArgb(20, 114, 101);
     public static Color Paper { get; private set; } = Color.FromArgb(245, 247, 245);
     public static Color Surface { get; private set; } = Color.White;
-    public static Color Border { get; private set; } = Color.FromArgb(218, 227, 225);
+    public static Color Border { get; private set; } = Color.FromArgb(159, 174, 187);
     public static Color OnAccent { get; private set; } = Color.White;
     public static Image? Logo { get; private set; }
     public static bool HasCustomLogo { get; private set; }
@@ -26,7 +26,7 @@ internal static class Ui
         Surface = Neutral(IsDark ? 32 + delta / 4 : 252 + delta / 10);
         Ink = IsDark ? Color.FromArgb(230, 237, 239) : Color.FromArgb(29, 50, 59);
         Muted = IsDark ? Color.FromArgb(160, 179, 187) : Color.FromArgb(92, 112, 121);
-        Border = IsDark ? Color.FromArgb(65, 76, 87) : Color.FromArgb(218, 225, 232);
+        Border = IsDark ? Color.FromArgb(106, 121, 136) : Color.FromArgb(159, 174, 187);
         Teal = ParseAccent(config.AccentColor);
         OnAccent = 0.2126 * Teal.R + 0.7152 * Teal.G + 0.0722 * Teal.B > 160 ? Color.FromArgb(16, 30, 36) : Color.White;
         var previous = Logo;
@@ -63,6 +63,10 @@ internal static class Ui
     public static void SetButtonGlyph(Button button, string glyph)
     {
         if (button is ThemeButton themed) { themed.Glyph = glyph; themed.Invalidate(); }
+    }
+    public static void SetButtonSelected(Button button, bool selected)
+    {
+        if (button is ThemeButton themed) { themed.Selected = selected; themed.Invalidate(); }
     }
     public static Control Card(Control content)
     {
@@ -144,7 +148,7 @@ internal static class Ui
             combo.BackColor = Surface; combo.ForeColor = Ink; combo.FlatStyle = FlatStyle.Flat;
             if (combo.DropDownStyle == ComboBoxStyle.DropDownList && combo.DrawMode != DrawMode.OwnerDrawFixed)
             {
-                combo.DrawMode = DrawMode.OwnerDrawFixed; combo.ItemHeight = Math.Max(22, 24 * combo.DeviceDpi / 96);
+                combo.DrawMode = DrawMode.OwnerDrawFixed; combo.ItemHeight = Math.Max(combo.Font.Height + 4 * combo.DeviceDpi / 96, 20 * combo.DeviceDpi / 96);
                 combo.DrawItem += (_, e) =>
                 {
                     bool selected = (e.State & DrawItemState.Selected) != 0 && (e.State & DrawItemState.ComboBoxEdit) == 0;
@@ -188,6 +192,8 @@ internal static class Ui
         public string Glyph { get; set; } = "";
         [DefaultValue(false)]
         public bool IconOnly { get; set; }
+        [DefaultValue(false)]
+        public bool Selected { get; set; }
         bool hover, pressed;
         public ThemeButton() => SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
@@ -207,10 +213,11 @@ internal static class Ui
             float scale = DeviceDpi / 96f; bool primary = Tag as string == "primary";
             bool keyboardFocus = Focused && keyboardNavigation;
             Color color = Enabled ? ForeColor : Muted;
-            Color background = !Enabled ? Blend(BackColor, Paper, .5f) : pressed ? Blend(BackColor, primary ? Color.Black : Teal, .14f) : hover ? Blend(BackColor, primary ? Color.White : Teal, .10f) : BackColor;
+            Color resting = Selected && !primary ? Blend(BackColor, Teal, IsDark ? .22f : .12f) : BackColor;
+            Color background = !Enabled ? Blend(resting, Paper, .5f) : pressed ? Blend(resting, primary ? Color.Black : Teal, .14f) : hover ? Blend(resting, primary ? Color.White : Teal, .10f) : resting;
             using var path = RoundPath(new RectangleF(.75f, .75f, Width - 1.5f, Height - 1.5f), IconOnly ? Height / 2f : 9 * scale);
             using var fill = new SolidBrush(background); e.Graphics.FillPath(fill, path);
-            using var border = new Pen(keyboardFocus || hover ? Teal : primary ? background : Border, keyboardFocus ? 1.6f : 1); e.Graphics.DrawPath(border, path);
+            using var border = new Pen(keyboardFocus || hover || Selected ? Teal : primary ? background : Border, keyboardFocus ? 1.6f : 1); e.Graphics.DrawPath(border, path);
             var textRect = Rectangle.Inflate(ClientRectangle, -(int)(8 * scale), 0);
             if (Glyph.Length > 0)
             {

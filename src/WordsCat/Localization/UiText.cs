@@ -63,6 +63,13 @@ internal static class UiText
 
     static readonly Dictionary<string, string> English = new()
     {
+        ["已取消本次词条的所选补充内容。"] = "Removed the selected supplemental content from this entry.",
+        ["自定义快捷键"] = "Custom shortcuts",
+        ["恢复默认快捷键"] = "Restore default shortcuts",
+        ["点击方框后按下新的组合键，须包含 Ctrl 或 Alt；保存后生效。Tab 切换下一项，取消则保留原设置。"] = "Click a box and press a shortcut including Ctrl or Alt. Save to apply; Tab moves to the next box. Cancel keeps your previous settings.",
+        ["快捷键不能重复，请为每个功能设置不同的组合键。"] = "Shortcuts must be unique. Choose a different combination for each action.",
+        ["快捷键须包含 Ctrl 或 Alt，以及一个字母、数字、功能键或方向键。"] = "A shortcut must include Ctrl or Alt and a letter, number, function key or arrow key.",
+        ["以下快捷键无法注册，可能被其他软件或系统占用：{0}。请修改后保存。"] = "These shortcuts could not be registered and may be reserved by Windows or another app: {0}. Change them before saving.",
         ["补全音标"] = "Add IPA",
         ["正在补充本次词条的所选内容…"] = "Adding the selected content to this entry…",
         ["已补充本次词条内容，可编辑后保存。输入 {0} / 输出 {1} tokens"] = "Added to this entry. Review before saving. {0} input / {1} output tokens",

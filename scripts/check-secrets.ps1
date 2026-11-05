@@ -7,6 +7,8 @@ $taskRoot = [IO.Path]::GetFullPath($Workspace).TrimEnd('\','/')
 $taskGuardSource = Join-Path (Split-Path -Parent $PSScriptRoot) 'src/WordsCat/Security/SecretRedactor.cs'
 try {
     if (-not ('ReadDock.SecretRedactor' -as [type])) { Add-Type -Path $taskGuardSource -ErrorAction Stop 2>$null }
+    # Windows PowerShell 5.1 does not load ZipArchive with FileSystem alone.
+    Add-Type -AssemblyName System.IO.Compression -ErrorAction Stop 2>$null
     Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop 2>$null
 }
 catch { [Console]::Error.WriteLine('scripts/check-secrets.ps1:0'); exit 2 }

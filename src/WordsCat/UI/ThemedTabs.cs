@@ -2,14 +2,16 @@ namespace ReadDock;
 
 internal sealed class ThemedTabs : TabControl
 {
-    public ThemedTabs()
+    private readonly int headerHeight;
+    public ThemedTabs(int headerHeight = 42)
     {
+        this.headerHeight = headerHeight;
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
-        SizeMode = TabSizeMode.Fixed; ItemSize = new Size(160, 42);
+        SizeMode = TabSizeMode.Fixed; ItemSize = new Size(160, headerHeight);
     }
     protected override void OnHandleCreated(EventArgs e)
     {
-        base.OnHandleCreated(e); ItemSize = new Size(150 * DeviceDpi / 96, 42 * DeviceDpi / 96);
+        base.OnHandleCreated(e); ItemSize = new Size(150 * DeviceDpi / 96, headerHeight * DeviceDpi / 96);
     }
     protected override void OnSelectedIndexChanged(EventArgs e) { base.OnSelectedIndexChanged(e); Invalidate(); }
     protected override void OnPaint(PaintEventArgs e)

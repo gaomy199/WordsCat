@@ -59,7 +59,7 @@ internal static class UiSelfTests
                             await Task.Delay(100);
                             string state = await popup.InspectReadingAsync("({text:document.getElementById('content').textContent,fractions:document.querySelectorAll('.mfrac').length,images:document.images.length,scripts:document.querySelectorAll('#content script').length,fonts:document.fonts.status})");
                             using var parsed = JsonDocument.Parse(state);
-                            if (parsed.RootElement.TryGetProperty("text", out var value) && value.GetString()!.Contains(expected) && (!fraction || parsed.RootElement.GetProperty("fractions").GetInt32() > 0) && parsed.RootElement.GetProperty("fonts").GetString() == "loaded")
+                            if (parsed.RootElement.ValueKind == JsonValueKind.Object && parsed.RootElement.TryGetProperty("text", out var value) && value.GetString()!.Contains(expected) && (!fraction || parsed.RootElement.GetProperty("fractions").GetInt32() > 0) && parsed.RootElement.GetProperty("fonts").GetString() == "loaded")
                             {
                                 if (parsed.RootElement.GetProperty("images").GetInt32() != 0 || parsed.RootElement.GetProperty("scripts").GetInt32() != 0) throw new Exception("Popup interpreted source HTML.");
                                 await Task.Delay(200); return;
@@ -185,6 +185,12 @@ internal static class UiSelfTests
                     var ask = Descendants(main).OfType<Button>().Single(t => t.AccessibleName == "followUpSubmit");
                     var inputFrame = input.Parent!;
                     if (inputFrame.Top != ask.Top || inputFrame.Height != ask.Height) throw new Exception("Question input frame and button are not aligned.");
+                    if (input.Multiline || Math.Abs(input.Top * 2 + input.Height - inputFrame.ClientSize.Height) > 2)
+                        throw new Exception("Single-line follow-up text is not vertically centered.");
+                    var cards = Descendants(main).Single(c => c.Name == "readingCards");
+                    var clear = Descendants(main).OfType<Button>().Single(b => b.Text == "清空本次内容");
+                    int gap = clear.PointToScreen(Point.Empty).Y - cards.PointToScreen(new Point(0, cards.Height)).Y;
+                    if (gap < 10 * main.DeviceDpi / 96) throw new Exception("Reading cards and footer actions have insufficient separation.");
                     var originalPanel = Descendants(main).OfType<MathReadingView>().First();
                     if (historyList.PointToScreen(Point.Empty).X >= originalPanel.PointToScreen(Point.Empty).X) throw new Exception("History must be left of the source.");
                     var brand = Descendants(main).OfType<Label>().Single(l => l.Name == "brandTitle");
@@ -213,6 +219,21 @@ internal static class UiSelfTests
                     if (!direction.Text.Contains("中文 → 英文") || !Descendants(main).OfType<Label>().Any(l => l.Text == "02   英文译文"))
                         throw new Exception("Chinese source must automatically select English translation: " + direction.Text + "; detected=" + TranslationLanguage.DetectDirection(originalEditor.Text) + "; source=" + originalEditor.Text + "; headings=" + string.Join("|", Descendants(main).OfType<Label>().Where(l => l.Text.StartsWith("02")).Select(l => l.Text)));
                     var translatedEditor = Descendants(main).OfType<RichTextBox>().Single(r => r.AccessibleName == "译文");
+                    translatedEditor.Text = "深度强化学习；浅尝辄止。 English $q_1$";
+                    await Task.Delay(450);
+                    foreach (var viewToCheck in Descendants(main).OfType<MathReadingView>())
+                    {
+                        string typography = "";
+                        for (int attempt = 0; attempt < 50; attempt++)
+                        {
+                            typography = await viewToCheck.InspectAsync("(()=>{const c=document.querySelector('.cjk');const k=document.querySelector('.katex');return {cjk:c&&getComputedStyle(c).fontSize,body:getComputedStyle(document.body).fontSize,math:k&&getComputedStyle(k).fontSize,text:document.getElementById('content').textContent};})()");
+                            if (typography.Contains("16px") && typography.Contains("18px") && typography.Contains("20.7px")) break;
+                            await Task.Delay(100);
+                        }
+                        using var typographyDoc = JsonDocument.Parse(typography);
+                        if (typographyDoc.RootElement.GetProperty("cjk").GetString() != "16px" || typographyDoc.RootElement.GetProperty("body").GetString() != "18px" || typographyDoc.RootElement.GetProperty("math").GetString() != "20.7px")
+                            throw new Exception("Chinese reading glyphs should shrink by 2px in both panes without changing English or math: " + typography);
+                    }
                     translatedEditor.Text = "Let $q_1$ be constant.";
                     Descendants(main).OfType<Button>().Single(b => b.Text == "交换").PerformClick();
                     if (!direction.Text.Contains("英文 → 中文") || originalEditor.Text != "Let $q_1$ be constant." || translatedEditor.Text.Length != 0 || input.Text.Length != 0)
@@ -276,6 +297,7 @@ internal static class UiSelfTests
                 File.WriteAllText(Path.Combine(directory, "ui-test-results.txt"), "PASS: service preset form, masked blank key, preserve/replace/cancel semantics, local probe, modeless first-use guide and offline safety.\nPASS: single-language brand, all main action icons, no manual language selector, automatic Chinese/English headings and swap; framed inputs stay inside rows and align with the follow-up button.\nPASS: language previews immediately in main and settings, compact framed choices, bilingual grid headings, cancel rolls back and save persists; English brand has no duplicate Chinese subtitle.\nPASS: actual WebView2 KaTeX fractions AND loaded KaTeX Main/Math fonts, inert HTML, reading theme and settings preview rollback.\nPASS: popup KaTeX renders source/translation with inert HTML, toggle resets for new selections/errors; short popup shrinks, long popup caps height with vertical scrolling; history sidebar restores original; precise 90-record irreversible-deletion warning; deny preserves data, confirm trims.\nPASS: minimize retains taskbar, X hides and clears current input; three consecutive popup-to-main transitions and latest selection rendering. Foreground activation remains subject to Windows foreground policy. No credentials or model requests.");
                 File.AppendAllText(Path.Combine(directory, "ui-test-results.txt"), "\nPASS: dock click toggles open/closed/open, pointer inside menu stays open, outside grace period resets and dismisses, menu action executes once and closes, drag saves position without opening; standard tray AutoClose restored.\nPASS: three sidebar collapse/expand cycles persist state, preserve source/history and restore reading width; collapsed toggle remains within every parent boundary.");
                 File.AppendAllText(Path.Combine(directory, "ui-test-results.txt"), "\nPASS: popup source/translation selections prefill the modal word editor and trigger local mock enrichment; popup stays hidden while editing, restores on cancel, main remains hidden and new captures clear selection.");
+                File.AppendAllText(Path.Combine(directory, "ui-test-results.txt"), "\nPASS: one/two/all supplement toggle cycles shrink scrolled field tables, retain the final field height and other edits, and remove optional Markdown; follow-up text is centered, reading/footer areas separated; Chinese glyphs are 16px in both panes while English remains 18px and math 20.7px.");
             }
             catch (Exception ex) { File.WriteAllText(Path.Combine(directory, "ui-test-failure.txt"), SecretRedactor.Redact(ex.ToString())); Environment.ExitCode = 1; }
             finally { host.Close(); }
