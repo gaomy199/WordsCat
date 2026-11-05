@@ -9,7 +9,10 @@ namespace ReadDock;
 public class ModelRequestException(System.Net.HttpStatusCode? statusCode, string message) : InvalidOperationException(message)
 {
     public System.Net.HttpStatusCode? StatusCode { get; } = statusCode;
+    internal HttpRequestError? NetworkError { get; init; }
 }
+
+public sealed class ModelOutputLimitException() : InvalidOperationException("模型输出达到上限，结果尚未完整结束；请缩小选区后重试。") { }
 
 public sealed class OpenAiCompatibleClient : IModelService
 {
@@ -52,9 +55,9 @@ public sealed class OpenAiCompatibleClient : IModelService
     private async Task<ApiResult> SendOnceAsync(ModelRequestOptions config, string key, IReadOnlyList<ChatMessage> messages, bool json, CancellationToken requestToken)
     {
         SecretRedactor.Register(key);
-        if (string.IsNullOrWhiteSpace(key)) throw new InvalidOperationException("请先在「设置」中填写 DeepSeek API Key。");
+        if (string.IsNullOrWhiteSpace(key)) throw new InvalidOperationException("请先在「设置」中填写 API Key。");
         if (key.Trim().Any(char.IsWhiteSpace) || key.Any(char.IsControl)) throw new InvalidOperationException("API Key 中包含空格或换行，请重新粘贴完整的 Key。");
-        if (!Uri.TryCreate(config.BaseUrl.TrimEnd('/') + "/", UriKind.Absolute, out var endpoint) || endpoint.Scheme != "https" || !string.IsNullOrEmpty(endpoint.UserInfo) || !string.IsNullOrEmpty(endpoint.Query) || !string.IsNullOrEmpty(endpoint.Fragment))
+        if (!Uri.TryCreate(ModelPresets.NormalizeBaseUrl(config.BaseUrl) + "/", UriKind.Absolute, out var endpoint) || endpoint.Scheme != "https" || !string.IsNullOrEmpty(endpoint.UserInfo) || !string.IsNullOrEmpty(endpoint.Query) || !string.IsNullOrEmpty(endpoint.Fragment))
             throw new InvalidOperationException("API 地址必须是有效的 HTTPS 基础地址，不能带查询参数、密码或片段。");
         if (string.IsNullOrWhiteSpace(config.Model)) throw new InvalidOperationException("请填写模型名称。");
         var payload = new JsonObject
@@ -93,6 +96,10 @@ public sealed class OpenAiCompatibleClient : IModelService
             var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("choices", out var choices) || choices.ValueKind != JsonValueKind.Array || choices.GetArrayLength() == 0) throw new InvalidDataException("模型未返回结果，请手动重试。");
             var choice = choices[0];
+            if (choice.ValueKind == JsonValueKind.Object && choice.TryGetProperty("finish_reason", out var limit) && limit.ValueKind == JsonValueKind.String && limit.GetString() == "length"
+                && choice.TryGetProperty("message", out var limitedMessage) && limitedMessage.ValueKind == JsonValueKind.Object
+                && (HasText(limitedMessage, "content") || HasText(limitedMessage, "reasoning_content")))
+                throw new ModelOutputLimitException();
             if (choice.ValueKind != JsonValueKind.Object || !choice.TryGetProperty("finish_reason", out var finish) || finish.ValueKind != JsonValueKind.String || finish.GetString() != "stop")
                 throw new InvalidDataException("模型结果未完整结束，请缩小选区或减少输入后重试。");
             if (!choice.TryGetProperty("message", out var message) || message.ValueKind != JsonValueKind.Object || !message.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.String)
@@ -107,11 +114,12 @@ public sealed class OpenAiCompatibleClient : IModelService
             }
             return new ApiResult(SecretRedactor.Redact(text), input, output);
         }
-        catch (HttpRequestException) { throw new TransientModelException(null, "无法连接模型服务，请检查网络和 API 地址。"); }
+        catch (HttpRequestException ex) { throw new TransientModelException(null, "无法连接模型服务，请检查网络和 API 地址。") { NetworkError = ex.HttpRequestError }; }
         catch (JsonException) { throw new InvalidDataException("API 返回格式异常，请检查接口地址或稍后重试。"); }
         catch (Exception ex) when (SecretRedactor.Redact(ex.ToString()) != ex.ToString())
         { throw new InvalidOperationException("模型请求失败，敏感诊断信息已隐藏。"); }
     }
+    static bool HasText(JsonElement message, string name) => message.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString());
     static JsonNode MessageContent(ChatMessage message, bool deepSeek)
     {
         if (message.ImageDataUrl == null) return JsonValue.Create(message.Content)!;

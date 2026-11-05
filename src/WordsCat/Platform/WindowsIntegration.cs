@@ -85,22 +85,37 @@ internal static class CredentialStore
     [DllImport("advapi32.dll", EntryPoint = "CredReadW", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool CredRead(string target, uint type, uint flags, out IntPtr credential);
     [DllImport("advapi32.dll")] static extern void CredFree(IntPtr ptr);
     [DllImport("advapi32.dll", EntryPoint = "CredDeleteW", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool CredDelete(string target, uint type, uint flags);
+    static string TargetFor(string baseUrl)
+    {
+        string origin = CredentialScope.Origin(baseUrl);
+        if (origin.Length == 0) throw new InvalidOperationException("请输入有效的 HTTPS 基础地址。");
+        if (CredentialScope.Same(baseUrl, ModelPresets.BaseUrl)) return Target;
+        return "ReadDock.Model.ApiKey.v1." + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(origin.ToLowerInvariant())));
+    }
     static bool MatchesScope(CREDENTIAL credential, string baseUrl) =>
-        CredentialScope.Matches(credential.Comment, baseUrl);
+        credential.Comment?.StartsWith(CredentialScope.Prefix, StringComparison.Ordinal) == true
+            ? CredentialScope.Matches(credential.Comment, baseUrl)
+            : CredentialScope.Same(baseUrl, ModelPresets.BaseUrl);
+    static bool Find(string baseUrl, out IntPtr ptr)
+    {
+        string target = TargetFor(baseUrl);
+        if (CredRead(target, 1, 0, out ptr)) return true;
+        if (Marshal.GetLastWin32Error() != 1168) throw new InvalidOperationException("无法检查 Windows 凭据管理器。");
+        // Keep custom-provider credentials saved by earlier versions usable.
+        if (target != Target && CredRead(Target, 1, 0, out ptr)) return true;
+        ptr = IntPtr.Zero;
+        return false;
+    }
     public static bool HasSavedKey(string baseUrl)
     {
-        if (!CredRead(Target, 1, 0, out var ptr))
-        {
-            if (Marshal.GetLastWin32Error() == 1168) return false;
-            throw new InvalidOperationException("无法检查 Windows 凭据管理器。");
-        }
+        if (!Find(baseUrl, out var ptr)) return false;
         // Presence and origin metadata only. Never decode the secret for UI display.
         try { var c = Marshal.PtrToStructure<CREDENTIAL>(ptr); return c.CredentialBlobSize > 0 && MatchesScope(c, baseUrl); }
         finally { CredFree(ptr); }
     }
     public static string ReadFor(string baseUrl)
     {
-        if (!CredRead(Target, 1, 0, out var ptr)) return "";
+        if (!Find(baseUrl, out var ptr)) return "";
         try
         {
             var c = Marshal.PtrToStructure<CREDENTIAL>(ptr);
@@ -115,13 +130,14 @@ internal static class CredentialStore
     public static void SaveFor(string key, string baseUrl)
     {
         SecretRedactor.Register(key);
-        if (string.IsNullOrWhiteSpace(key)) { CredDelete(Target, 1, 0); return; }
+        string target = TargetFor(baseUrl);
+        if (string.IsNullOrWhiteSpace(key)) { CredDelete(target, 1, 0); return; }
         if (key.Length > 1000) throw new InvalidOperationException("API Key 长度异常。");
         if (CredentialScope.Origin(baseUrl).Length == 0) throw new InvalidOperationException("请输入有效的 HTTPS 基础地址。");
         var blob = Marshal.StringToCoTaskMemUni(key);
         try
         {
-            var c = new CREDENTIAL { Type = 1, TargetName = Target, Comment = CredentialScope.Prefix + CredentialScope.Origin(baseUrl), CredentialBlobSize = (uint)Encoding.Unicode.GetByteCount(key), CredentialBlob = blob, Persist = 2, UserName = Environment.UserName, TargetAlias = "" };
+            var c = new CREDENTIAL { Type = 1, TargetName = target, Comment = CredentialScope.Prefix + CredentialScope.Origin(baseUrl), CredentialBlobSize = (uint)Encoding.Unicode.GetByteCount(key), CredentialBlob = blob, Persist = 2, UserName = Environment.UserName, TargetAlias = "" };
             if (!CredWrite(ref c, 0)) throw new InvalidOperationException("Windows 凭据管理器保存失败，错误码：" + Marshal.GetLastWin32Error());
         }
         finally { Marshal.ZeroFreeCoTaskMemUnicode(blob); }

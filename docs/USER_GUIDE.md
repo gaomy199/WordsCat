@@ -1,6 +1,6 @@
 # WordsCat user guide
 
-Version **0.3.8** · Windows 11
+Version **0.3.13** · Windows 11
 
 WordsCat translates short Chinese or English selections and saves reviewed vocabulary to Markdown notebooks.
 
@@ -10,15 +10,19 @@ Download a `WordsCat-VERSION-win-x64.zip` asset from [GitHub Releases](https://g
 
 When packaging locally, the ready-to-run ZIP is written under `dist/`, with its checksum in `dist/SHA256SUMS.txt`. The default `publish/` folder contains the framework-dependent development build.
 
-Version 0.3.8 in this workspace is available as a local `publish/WordsCat.exe` build. This task does not create or publish a 0.3.8 ZIP; existing local archives remain their original versions. Check the chosen Release for its actual version.
+Version 0.3.13 is built locally as `publish/WordsCat.exe`. No new ZIP is generated for this version. Check the chosen Release for its actual version.
 
-On first launch without a saved key, a short, dismissible guide offers **Open settings** or **Set up later**. Text views remain usable. Open **Settings → Models & recognition → Model service** and choose **DeepSeek** or **Custom OpenAI-compatible**. DeepSeek retains the default Base URL `https://api.deepseek.com` and model `deepseek-flash`. For a custom service, enter its HTTPS Base URL and model name. The optional vision model defaults to the text model when blank; image input requires a model that supports it.
+On first launch without a saved key, a short, dismissible guide offers **Open settings** or **Set up later**. Open **Settings → Models & recognition → Model service** and choose **DeepSeek**, **Gitee AI · Moark**, or **Custom OpenAI-compatible**. DeepSeek retains `https://api.deepseek.com` and `deepseek-flash`. The Gitee preset uses `https://ai.gitee.com/v1`; a Gitee homepage URL is also normalized to this API path. For a custom service, enter its HTTPS Base URL.
 
-The API key input is masked and always opens empty. Keys are stored only in Windows Credential Manager, never in settings JSON. Leave it blank to keep the saved key; enter a new value and save to replace it. Cancel discards the input. Switching service origins requires saving that service's key. Existing ReadDock credentials remain compatible.
+A fixed row of dots indicates a saved key for the current service. These dots are a placeholder: the actual saved key never enters the editor and cannot be copied. New input is masked; blank keeps the existing key. Keys remain only in Windows Credential Manager, with separate entries by service origin; the DeepSeek compatibility target is unchanged. Cancel discards unsaved input.
 
-Save settings, reopen them, and choose **Test connection**. This sends one minimal text request using the saved key, with no document text or image, no retry, and a timeout of up to 15 seconds. Results distinguish a missing key, 401 invalid key, 402/429 quota or rate limit, network/timeout, and an unexpected response format. A successful text probe does not verify image support. Unsaved key/address changes must be saved first.
+Enter the key and click **Fetch models**. This saves a newly entered key immediately, then reads the service's `/models` endpoint without sending document content. Cancelling settings afterwards does not undo that explicit key save. Select text and vision models from the returned dropdowns, then save settings. Model IDs can also be entered manually if discovery is unsupported. The list does not establish image capability or account entitlement: select an image-capable vision model, or use Windows OCR. A blank vision model uses the text model. This setup changes only WordsCat, with no Codex configuration or login changes. See [Gitee's compatible API guide](https://ai.gitee.com/docs/integrations/Development-Tools/catpaw).
 
-In **Notebooks & template**, add Markdown notebook destinations and choose a default. Existing custom templates and notebooks are preserved when upgrading.
+Save settings, reopen them, and choose **Test connection**. This sends one fixed short text request using the saved key, with no document text or image and no retry. The test follows the configured request timeout (100 seconds by default), including for queued or slower models. Gitee Qwen3-32B uses a `/no_think` short-answer prompt and a 128-token cap; other probes retain their 8-token cap. Results distinguish missing/invalid keys, quota/rate limits, DNS, HTTPS, proxy, other network failures, timeouts, truncated outputs and malformed responses. A successful text probe does not verify image support. Unsaved key changes must be saved first.
+
+In **Notebooks & template**, add Markdown notebook destinations and choose a default. Generated names such as “Notebook 1” follow the selected filename; custom names are retained. Change the current target in the main window or vocabulary editor, independently of the startup default. The popup displays the current notebook in its title and retains the v0.3.9 layout with three bottom actions. Existing custom templates and notebooks are preserved when upgrading.
+
+At each startup, WordsCat also discovers `.md` files directly inside its `Data` folder and adds unregistered files by filename, up to 40 notebooks. Existing configured targets and defaults are kept; duplicate paths are skipped. Copy notebooks into the new version's `Data` folder and restart to use them without registering each file. Subfolders are not scanned and notebook contents are not changed. A removed list entry will be discovered again next startup if its file remains there. Keep the entire old `Data` folder, including `settings.json` and custom templates, to preserve settings as well as notebooks.
 
 Choose English or Chinese under **Appearance**. Language and appearance changes preview immediately; save to keep them, or cancel to restore the saved settings.
 
@@ -50,7 +54,7 @@ After translating, type a question below the reading panes and press Enter or cl
 
 ## Save vocabulary
 
-Select a word or phrase in the source and choose **Save word** (or **Ctrl+Alt+W**). Review its editable fields and the target notebook before saving. Base cards include word, lemma, contextual part of speech and meaning, the source sentence, and its translation. In **Settings → Notebooks & template**, use the four switches to add other common senses (enabled by default), IPA, AI examples with translations, or common collocations (the last three are disabled by default). Added content appears as separate editable fields and in the Markdown preview; AI examples never replace the verified source sentence. Changes affect new entries. Existing custom fields and layouts remain in use; template files and saved notes are preserved.
+Select a word or phrase in the source and choose **Save word** (or **Ctrl+Alt+W**). Review its editable fields and the target notebook before saving. Base cards include word, lemma, part of speech, meaning, the source sentence, and its translation. Meaning lists the contextual sense first, followed by other common senses. In **Settings → Notebooks & template**, use the four switches for common word forms (enabled by default, up to 3), IPA, AI examples with translations, and common collocations (the last three are disabled by default). Each word form has its spelling, part of speech and meaning; for generalizable, examples include generalize, generalization and generalized. IPA follows the lemma and precedes part of speech in the editor and standard Markdown. AI examples never replace the verified source sentence. Changes affect new entries. Old switch values migrate to the word-forms switch. Legacy contextual-meaning labels update in memory. Custom inline layouts, template files and saved notes are preserved.
 
 The app appends deterministic Markdown, checks duplicates within the selected notebook, and supports undo with external-edit checks. Switching the current destination does not replace the default notebook. Your notebooks remain normal Markdown files usable in Obsidian or another editor.
 

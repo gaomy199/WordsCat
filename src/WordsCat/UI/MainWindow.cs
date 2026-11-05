@@ -32,7 +32,6 @@ internal sealed class MainWindow : Form
     private readonly Label sourceHeading = Ui.Label("", true, 12);
     private readonly Label translationHeading = Ui.Label("", true, 12);
     private readonly Label status = Ui.Label("就绪", false, 10);
-    private readonly Label modelBadge = Ui.Label("", false, 10);
     private readonly List<Button> workButtons = [];
     private readonly NotifyIcon tray;
     private readonly FloatingDock floating;
@@ -77,7 +76,6 @@ internal sealed class MainWindow : Form
         var workspaceTitle = Ui.Label("中英互译", true, 20); workspaceTitle.TextAlign = ContentAlignment.MiddleLeft;
         header.Controls.Add(workspaceTitle, 0, 0);
         header.Controls.Add(Ui.Label("在阅读中理解，在语境中积累。", false, 10), 0, 1);
-        modelBadge.Dock = DockStyle.Fill; modelBadge.TextAlign = ContentAlignment.MiddleRight; header.Controls.Add(modelBadge, 1, 0);
         var mode = Ui.Label("中英互译 · 手动收藏 · 本地历史"); mode.Dock = DockStyle.Fill; mode.TextAlign = ContentAlignment.MiddleRight; header.Controls.Add(mode, 1, 1);
         root.Controls.Add(header, 0, 0);
 
@@ -179,7 +177,6 @@ internal sealed class MainWindow : Form
         };
         KeyDown += (_, e) => { if (e.Control && e.KeyCode == Keys.Q && !dialogOpen) { e.Handled = true; Quit(); } };
         FormClosing += (_, e) => { if (!quitting) { e.Cancel = true; HideMain(); } };
-        UpdateBadge();
         RefreshNotebooks();
         RefreshHistory();
         UpdateDirectionLabels();
@@ -309,7 +306,6 @@ internal sealed class MainWindow : Form
         SetStatus("译文已放入左侧，已自动识别语言，可重新翻译。");
     }
     void AddMenu(string text, Action action) => menu.Items.Add(text, null, (_, _) => { if (!busy && !dialogOpen) action(); else SetStatus("请先完成或取消当前操作。"); });
-    void UpdateBadge() => modelBadge.Text = (config.ModelProvider == "custom" ? UiText.T("自定义 OpenAI 兼容") : "DeepSeek") + "  ·  " + config.Model + "  ·  v" + Application.ProductVersion.Split('+')[0];
     void SetStatus(string text, bool error = false) { text = SecretRedactor.Redact(UiText.T(text)); status.Text = text; status.ForeColor = error ? Color.FromArgb(196, 110, 56) : Ui.Muted; if (popup is { IsDisposed: false }) popup.UpdateStatus(text, error); }
     void SetBusy(bool value)
     {
@@ -409,7 +405,7 @@ internal sealed class MainWindow : Form
                 if (config.ScreenshotEngine == "vision" && !string.IsNullOrWhiteSpace(key))
                 {
                     using var png = new MemoryStream(); image.Save(png, System.Drawing.Imaging.ImageFormat.Png);
-                    SetStatus("DeepSeek 视觉识别 · 正在发送本次框选图片…");
+                    SetStatus("模型视觉识别 · 正在发送本次框选图片…");
                     var r = await api.TranslateImageAsync(config, key, png.ToArray(), token); token.ThrowIfCancellationRequested();
                     source.Text = r.Original; translation.Text = r.Translation; CompleteSession(r.Original, r.Translation);
                     currentConversation.AddRange(Prompts.Translation(config, r.Original)); currentConversation.Add(new("assistant", r.Translation));
@@ -441,7 +437,7 @@ internal sealed class MainWindow : Form
         if (text.Length > 16000) throw new InvalidOperationException("本工具适合局部阅读，请将本次选区控制在 16000 个字符以内。");
         ClearTranslation();
         var messages = Prompts.Translation(config, text);
-        SetStatus("正在请求 DeepSeek，仅发送当前原文和阅读术语表…");
+        SetStatus("正在请求模型，仅发送当前原文和阅读术语表…");
         var r = await api.CompleteAsync(config, ReadKey(), messages, false, token); token.ThrowIfCancellationRequested();
         source.Text = text; translation.Text = r.Text; CompleteSession(text, r.Text);
         currentConversation.AddRange(messages); currentConversation.Add(new("assistant", r.Text));
@@ -505,7 +501,7 @@ internal sealed class MainWindow : Form
             RefreshLanguage(config.UiLanguage); SetStatus("就绪");
             if (config.HistoryLimit < oldHistoryLimit) ClearSession();
             RefreshAppearance(config);
-            if (config.ShowFloating) floating.Show(); else floating.Hide(); UpdateBadge(); RefreshNotebooks();
+            if (config.ShowFloating) floating.Show(); else floating.Hide(); RefreshNotebooks();
             RefreshHistory();
         }
         catch (Exception ex) { Ui.Error(this, ex); }
@@ -517,7 +513,7 @@ internal sealed class MainWindow : Form
         sourceReading.RefreshLanguage(); translationReading.RefreshLanguage(); UiText.Apply(floating);
         tray.Text = UiText.T("单词猫 WordsCat · Ctrl+Alt+S 截图翻译");
         question.PlaceholderText = UiText.T("输入语法、句意或追问当前选区其他问题");
-        UpdateDirectionLabels(); RefreshHistory(); UpdateBadge();
+        UpdateDirectionLabels(); RefreshHistory();
         ApplySidebarState();
     }
     void RefreshAppearance(AppConfig appearance)

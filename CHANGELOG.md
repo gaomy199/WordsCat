@@ -4,6 +4,35 @@
 
 - Refresh the public README with download/setup steps, keyboard shortcuts, developer checks, output-directory guidance and license links. Move temporary working-tree/publication status into project records; keep the English entry documentation and prominent Chinese guide link. Documentation only; application version remains 0.3.7.
 
+## 0.3.13 · 2026-11-05 · Uncommitted
+
+- Restore the translation popup's v0.3.9 layout: title and close button in the header, with the original three actions below the reading/status area. Remove the popup notebook selector, its reserved header space and its selection event wiring. Keep notebook choice in the main window and vocabulary editor; the popup title follows the active target.
+- Retain Gitee/model discovery, Qwen connection fixes and Data notebook discovery. Update publish/ only; no tests, UI inspection, network calls or ZIP packaging, as requested.
+
+## 0.3.12 · 2026-11-05 · Uncommitted
+
+- Fix the connection probe silently capping the configured 100-second deadline at 15 seconds. For Gitee Qwen3-32B, use a fixed short `/no_think` probe with a 128-token cap instead of 8; retain a single request with no document content or retries.
+- Distinguish configured-duration timeouts, DNS, TLS, proxy failures and output-limit responses from malformed API responses. Keep truncated translations rejected. Add fixed-fake-credential/local-handler regressions and reproduce the original 15-second/8-token options without accessing production credentials.
+- User explicitly authorized live connection debugging on 2026-11-05. Live reproduction uses the app's existing saved credentials and its fixed-text Test connection action; no document/image upload, key extraction or key storage in diagnostic files. Final candidate result is recorded in PROJECT_STATE.md.
+
+## 0.3.11 · 2026-11-05 · Uncommitted
+
+- Discover Markdown notebooks directly under Data at startup, including when only notebook files are copied into a new version. Merge by resolved path, retain configured names/defaults/external targets, handle name collisions and respect the 40-notebook limit. A fresh configuration uses discovered notebooks before creating the fallback target; discovery reads filenames only.
+- Update publish/ only; at the user's request, no automated tests, UI inspection, live API calls or ZIP packaging. Acceptance remains with the user.
+
+## 0.3.10 · 2026-11-05 · Uncommitted
+
+- Add a Gitee AI / Moark preset with the official `/v1` API address, automatic correction of the homepage URL, and on-demand `/models` discovery for editable text/vision model selectors. Keep manual model IDs and local Windows OCR.
+- Show fixed dots for saved keys without placing stored secrets in the editor. Store new non-DeepSeek credentials separately by service origin while retaining the ReadDock DeepSeek target and legacy scoped credentials. Fetch models explicitly saves a newly entered key first. Leave Codex configuration and login untouched.
+- Remove the main-window provider/model badge. Derive generated notebook names from Markdown filenames and add a synchronized Save to selector on the popup's right side, keeping the current target separate from the startup default.
+- Update publish/ only. At the user's request, no automated tests, UI inspection, live model calls, ZIP packaging, commit or upload; functional acceptance remains with the user.
+
+## 0.3.9 · 2026-11-02 · Uncommitted
+
+- Move IPA immediately after the lemma in the editor and standard Markdown. Rename contextual meaning to Meaning, combining the contextual sense first with other common senses.
+- Replace separate other-senses content and its switch with Common word forms: up to three related forms, each with spelling, part of speech and meaning. Limit model output locally and reject manual overflow before writing. Preserve the previous switch value through JSON migration; update old labels and reserved optional fields in memory without rewriting custom templates or existing notebooks.
+- Build and package a local self-contained Windows x64 ZIP with .NET 10.0.14. The actual extracted package passes offline and real-window verification; Computer Use confirms editor/Markdown layout, and source/secret guards pass. Validation and archive details: docs/VALIDATION-v0.3.9.md. No commit, push, production-key access or model-service calls.
+
 ## 0.3.8 · 2026-11-02 · Uncommitted
 
 - Add four native slide switches for broader common senses (on by default), IPA, AI examples with translations, and collocations (off by default). Keep contextual meaning and verified source sentences separate from supplementary content; review and save all enabled fields through deterministic Markdown code. Preserve custom template files and existing notes.

@@ -24,7 +24,7 @@ internal static class PopupWordSelfTests
             Stage = "source context";
             Require(input.RootElement.GetProperty("source_text").GetString() == Original, "current recognized source used as context");
             Words.Add(word); await Task.Delay(30, token);
-            string entry = JsonSerializer.Serialize(new { word, lemma = word, part_of_speech = "adjective", meaning = "local mock meaning", example = Original, example_translation = "本地模拟原句译文", other_meanings = "n. 本地模拟其他词性", phonetic = "/test/", generated_example = "A robust example remains stable.", generated_example_translation = "本地模拟 AI 例句译文", collocations = "robust to noise — 对噪声稳健" });
+            string entry = JsonSerializer.Serialize(new { word, lemma = word, part_of_speech = "adjective", meaning = "local mock meaning", example = Original, example_translation = "本地模拟原句译文", word_forms = "robustness [n.] 稳健性\nrobustly [adv.] 稳健地", phonetic = "/test/", generated_example = "A robust example remains stable.", generated_example_translation = "本地模拟 AI 例句译文", collocations = "robust to noise — 对噪声稳健" });
             return new(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(new { choices = new[] { new { finish_reason = "stop", message = new { content = entry } } } }), Encoding.UTF8, "application/json") };
         }
     }
@@ -64,7 +64,7 @@ internal static class PopupWordSelfTests
                     Require(fields["wordField_word"].Text == word, "popup selection prefills word instead of stale main selection");
                     for (int attempt = 0; attempt < 60 && fields["wordField_meaning"].Text.Length == 0; attempt++) await Task.Delay(50);
                     Require(fields["wordField_meaning"].Text == "local mock meaning" && fields["wordField_example"].Text == Original, "automatic enrichment completes using local mock; stage=" + handler.Stage + ", calls=" + handler.Words.Count + ", keyReads=" + vault.Reads);
-                    Require(fields["wordField_other_meanings"].Text.Contains("n.") && fields["wordField_generated_example"].Text.Contains("example") && fields["wordField_phonetic"].Text == "/test/" && fields["wordField_collocations"].Text.Contains("noise"), "all enabled enrichment fields reach editable preview");
+                    Require(fields["wordField_word_forms"].Text.Contains("n.") && fields["wordField_generated_example"].Text.Contains("example") && fields["wordField_phonetic"].Text == "/test/" && fields["wordField_collocations"].Text.Contains("noise"), "all enabled enrichment fields reach editable preview");
                     checkedDialog = true;
                     if (word == "stable") Children(dialog).OfType<Button>().Single(c => c.Text == UiText.T("保存到单词本")).PerformClick();
                 }
@@ -77,7 +77,7 @@ internal static class PopupWordSelfTests
         }
         Require(handler.Words.SequenceEqual(new[] { "robust", "stable" }) && vault.Writes == 0, "one local enrichment per selected word and no credential writes");
         Require(File.ReadAllText(notebook).Contains("## stable") && !File.ReadAllText(notebook).Contains("## robust"), "save writes selected entry and cancel does not");
-        Require(File.ReadAllText(notebook).Contains("本地模拟其他词性") && File.ReadAllText(notebook).Contains("AI 例句"), "reviewed enrichment appended to Markdown");
+        Require(File.ReadAllText(notebook).Contains("robustness") && File.ReadAllText(notebook).Contains("AI 例句"), "reviewed enrichment appended to Markdown");
         popup.SetLoading("新选区"); Require(popup.SelectedText.Length == 0, "new capture clears stale selection");
         popup.PreserveOnClose = true; popup.Close();
     }

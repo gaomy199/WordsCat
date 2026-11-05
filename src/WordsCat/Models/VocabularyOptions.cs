@@ -2,14 +2,19 @@ namespace ReadDock;
 
 public sealed class VocabularyOptions
 {
-    public bool SupplementSenses { get; set; } = true;
+    private bool? includeWordForms, legacySupplementSenses;
+    public bool IncludeWordForms { get => includeWordForms ?? legacySupplementSenses ?? true; set => includeWordForms = value; }
+    // Read v0.3.8's switch without continuing to export its old meaning or key.
+    [System.Text.Json.Serialization.JsonPropertyName("supplement_senses")]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacySupplementSenses { get => null; set => legacySupplementSenses = value; }
     public bool IncludePhonetics { get; set; }
     public bool GenerateExamples { get; set; }
     public bool IncludeCollocations { get; set; }
 
     internal IEnumerable<FieldSpec> Fields()
     {
-        if (SupplementSenses) yield return Field("other_meanings", "其他常见词性与释义", "按词典原形补充常见词性及中文释义，按 n. / v. 等分组；不限于当前语境，避免生僻义，不重复语境释义", true);
+        if (IncludeWordForms) yield return Field("word_forms", "常见变形", "同词族常见派生词或屈折变化，最多 3 个，每行一个：英文词形 [词性] 中文释义；优先跨词性，不重复所选词，不填该词的其他中文含义，不确定则留空", true);
         if (IncludePhonetics) yield return Field("phonetic", "音标", "词典原形的国际音标 IPA；英美不同可分别标明，不确定则留空", false);
         if (GenerateExamples)
         {
@@ -17,6 +22,15 @@ public sealed class VocabularyOptions
             yield return Field("generated_example_translation", "AI 例句译文", "AI 例句对应的中文译文；AI 例句为空时留空", true);
         }
         if (IncludeCollocations) yield return Field("collocations", "常见搭配", "2—4 个确实常见的英文搭配及中文释义，例如 a series of — 一系列；没有可靠搭配则留空", true);
+    }
+
+    internal static string[] WordFormLines(string text) => System.Text.RegularExpressions.Regex.Split(text.Trim(), @"\r\n?|\n|[；;](?=\s*[A-Za-z][^；;\r\n]*\[)")
+        .Select(s => s.Trim()).Where(s => s.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    internal static string LimitWordForms(string text) => string.Join("\n", WordFormLines(text).Take(3));
+    internal static void ValidateWordForms(WordEntry entry)
+    {
+        if (WordFormLines(entry.Values.GetValueOrDefault("word_forms", "")).Length > 3)
+            throw new InvalidOperationException("常见变形最多填写 3 项，每行一个词形、词性和释义。");
     }
 
     private static FieldSpec Field(string key, string label, string description, bool multiline) =>

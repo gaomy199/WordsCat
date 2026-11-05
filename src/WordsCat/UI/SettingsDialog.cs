@@ -8,23 +8,24 @@ internal sealed class SettingsDialog : Form
     private readonly ICredentialVault credentials;
     private readonly IConnectionTester connectionTester;
     private readonly bool allowConnectionTest;
-    private readonly ComboBox provider = Choices(new("deepseek", "DeepSeek"), new("custom", "自定义 OpenAI 兼容"));
+    private readonly ComboBox provider = Choices(new("deepseek", "DeepSeek"), new("gitee", "Gitee AI · 模力方舟"), new("custom", "自定义 OpenAI 兼容"));
     private readonly Label keyNotice = Ui.Label("", false, 9);
     private readonly Button testButton;
     private readonly Button getKeyButton;
+    private readonly Button modelsButton;
     private ConnectionTestResult? lastTest;
     private bool savedKeyAvailable;
     private bool refreshingChoices;
     private string previousProvider = "";
-    private (string Url, string Text, string Vision) customDraft;
+    private readonly Dictionary<string, (string Url, string Text, string Vision)> serviceDrafts = new();
     private readonly TextBox apiKey = Ui.TextBox();
     private readonly TextBox baseUrl = Ui.TextBox();
-    private readonly ComboBox model = EditableCombo(ModelPresets.Model, "deepseek-v4-pro");
-    private readonly ComboBox visionModel = EditableCombo(ModelPresets.Model);
+    private readonly ComboBox model = EditableCombo();
+    private readonly ComboBox visionModel = EditableCombo();
     private readonly ComboBox engine = Choices(new("vision", "模型视觉 · 数学与扫描文献"), new("local", "Windows 本地 OCR · 仅上传识别文字"));
     private readonly DataGridView notebooks = new();
     private readonly TextBox template = Ui.TextBox();
-    private readonly SlideSwitch senses = new() { Name = "supplementSenses", Text = "补充常见词性与词义" };
+    private readonly SlideSwitch wordForms = new() { Name = "includeWordForms", Text = "补充常见变形（最多 3 个）" };
     private readonly SlideSwitch phonetics = new() { Name = "includePhonetics", Text = "写入音标" };
     private readonly SlideSwitch examples = new() { Name = "generateExamples", Text = "生成 AI 例句及译文" };
     private readonly SlideSwitch collocations = new() { Name = "includeCollocations", Text = "补充常见搭配" };
@@ -40,6 +41,7 @@ internal sealed class SettingsDialog : Form
     private readonly CheckBox startup = new() { Text = "启动时打开主窗口", AutoSize = true, Font = Ui.Font() };
     private readonly Label testStatus = Ui.Label("", false, 9);
     private CancellationTokenSource? testCancellation;
+    private CancellationTokenSource? catalogCancellation;
     private bool notebookEvent;
     private readonly Action<AppConfig> applyAppearance;
     private readonly Action<string>? applyLanguage;
@@ -69,12 +71,13 @@ internal sealed class SettingsDialog : Form
         baseUrl.Name = "modelBaseUrl"; model.Name = "textModel"; visionModel.Name = "visionModel";
         testStatus.Name = "connectionTestStatus"; keyNotice.Name = "modelKeyNotice";
         SelectChoice(provider, config.ModelProvider); previousProvider = config.ModelProvider;
-        customDraft = config.ModelProvider == "custom" ? (config.BaseUrl, config.Model, config.VisionModel) : ("", "", "");
+        serviceDrafts[config.ModelProvider] = (config.BaseUrl, config.Model, config.VisionModel);
         baseUrl.Text = config.BaseUrl; model.Text = config.Model; visionModel.Text = config.VisionModel;
+        ResetModelChoices();
         SelectChoice(engine, config.ScreenshotEngine); SelectChoice(theme, config.ThemeMode);
         SelectChoice(language, config.UiLanguage); language.AccessibleName = "uiLanguage";
         template.Name = "templatePath"; template.Text = PortablePaths.Store(config.TemplateFile);
-        senses.Checked = config.Vocabulary.SupplementSenses; phonetics.Checked = config.Vocabulary.IncludePhonetics;
+        wordForms.Checked = config.Vocabulary.IncludeWordForms; phonetics.Checked = config.Vocabulary.IncludePhonetics;
         examples.Checked = config.Vocabulary.GenerateExamples; collocations.Checked = config.Vocabulary.IncludeCollocations; instruction.Text = config.TranslationInstruction; glossary.Text = config.Glossary;
         accent.Text = config.AccentColor; brightness.Value = Math.Clamp(config.BackgroundBrightness, 0, 100);
         logo.Text = config.LogoFile; floating.Checked = config.ShowFloating; startup.Checked = config.ShowOnStartup;
@@ -91,12 +94,14 @@ internal sealed class SettingsDialog : Form
         AddField(ap, "服务预设", provider);
         AddField(ap, "Base URL", baseUrl);
         AddField(ap, "模型名", model);
+        modelsButton = Ui.Button("获取模型", async () => await FetchModelsAsync(), false, 140); modelsButton.Name = "fetchModels";
         AddField(ap, "API Key", apiKey);
         AddControl(ap, keyNotice, 58);
         testButton = Ui.Button("测试连接", async () => await TestAsync(), false, 140); testButton.Name = "testModelConnection";
-        getKeyButton = Ui.Button("获取 API Key", () => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://platform.deepseek.com/api_keys") { UseShellExecute = true }), false, 135);
-        AddControl(ap, Ui.Row(testButton, getKeyButton), 44);
+        getKeyButton = Ui.Button("获取 API Key", () => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Value(provider) == "gitee" ? "https://ai.gitee.com/dashboard/settings/tokens" : "https://platform.deepseek.com/api_keys") { UseShellExecute = true }), false, 135);
+        AddControl(ap, Ui.Row(modelsButton, testButton, getKeyButton), 44);
         AddControl(ap, testStatus, 64);
+        AddNote(ap, "获取模型会先将新密钥保存到 Windows 凭据管理器。列表中的模型仍需有调用权限；视觉模型请选择支持图片的型号，也可手动填写模型 ID。", 66);
         AddField(ap, "截图识别方式", engine);
         AddField(ap, "视觉模型（留空时使用文本模型）", visionModel);
         AddNote(ap, "视觉模式发送当前截图；本地模式先使用 Windows OCR。测试连接只验证文本服务。", 54);
@@ -106,8 +111,8 @@ internal sealed class SettingsDialog : Form
         ConfigureNotebookGrid(); AddControl(bp, notebooks, 140);
         AddControl(bp, Ui.Row(Ui.Button("添加单词本", AddNotebook, false, 135), Ui.Button("移除所选项", RemoveNotebook, false, 135)), 44);
         AddControl(bp, Ui.Label("收藏内容", true, 11), 30);
-        foreach (var toggle in new[] { senses, phonetics, examples, collocations }) AddControl(bp, toggle, 40);
-        AddNote(bp, "开关对新收藏生效；保留语境释义与文献原句，补充内容另列，可在保存前编辑。", 42);
+        foreach (var toggle in new[] { wordForms, phonetics, examples, collocations }) AddControl(bp, toggle, 40);
+        AddNote(bp, "释义合并当前义与其他常见义；常见变形最多 3 个。文献原句与 AI 例句分开，保存前可编辑。", 42);
         AddField(bp, "字段与排版模板 JSON", template);
         AddControl(bp, Ui.Row(Ui.Button("选择模板", ChooseTemplate), Ui.Button("编辑模板", EditTemplate), Ui.Button("检查模板", ValidateTemplate), Ui.Button("使用精简模板", ResetTemplate, false, 135)), 44);
         AddNote(bp, "相对路径以 Data（settings.json 所在目录）为基准，移动软件时请保留整个文件夹。外部单词本保留绝对路径。\n开关不改写模板文件或已有笔记；移除单词本只移除配置项。", 74);
@@ -134,11 +139,11 @@ internal sealed class SettingsDialog : Form
         var actions = Ui.Row(Ui.Button("保存设置", Save, true, 120), Ui.Button("取消", () => Close(), false, 90)); actions.Padding = new Padding(0, 12, 0, 0);
         root.Controls.Add(actions, 0, 2);
         Controls.Add(root);
-        FormClosing += (_, _) => testCancellation?.Cancel();
+        FormClosing += (_, _) => { testCancellation?.Cancel(); catalogCancellation?.Cancel(); };
         FormClosed += (_, _) => { apiKey.Clear(); PreviewLanguage(config.UiLanguage); this.applyAppearance(config); logoPreview.Image?.Dispose(); };
         Ui.FinishLayout(this);
         provider.SelectedIndexChanged += (_, _) => { if (!refreshingChoices) ChangeProvider(); };
-        baseUrl.TextChanged += (_, _) => ServiceChanged();
+        baseUrl.TextChanged += (_, _) => { ResetModelChoices(); RefreshSavedKey(); ServiceChanged(); };
         model.TextChanged += (_, _) => ServiceChanged(); apiKey.TextChanged += (_, _) => ServiceChanged();
         RefreshServiceText();
         theme.SelectedIndexChanged += (_, _) => { if (!refreshingChoices) ApplyLiveAppearance(); };
@@ -195,10 +200,20 @@ internal sealed class SettingsDialog : Form
         foreach (var n in config.Notebooks)
         {
             int i = notebooks.Rows.Add(n.Name, PortablePaths.Store(n.File), n.Id == config.DefaultNotebookId); notebooks.Rows[i].Tag = n.Id;
+            notebooks.Rows[i].Cells[1].Tag = PortablePaths.Store(n.File);
         }
         notebooks.CurrentCellDirtyStateChanged += (_, _) => { if (notebooks.IsCurrentCellDirty) notebooks.CommitEdit(DataGridViewDataErrorContexts.Commit); };
         notebooks.CellValueChanged += (_, e) =>
         {
+            if (!notebookEvent && e.RowIndex >= 0 && e.ColumnIndex == 1)
+            {
+                var row = notebooks.Rows[e.RowIndex];
+                string name = Convert.ToString(row.Cells[0].Value) ?? "", file = Convert.ToString(row.Cells[1].Value) ?? "";
+                string previousFile = row.Cells[1].Tag as string ?? "";
+                if (NotebookTarget.IsAutomaticName(name) || previousFile.Length > 0 && name == Path.GetFileNameWithoutExtension(previousFile))
+                    row.Cells[0].Value = Path.GetFileNameWithoutExtension(file);
+                row.Cells[1].Tag = file;
+            }
             if (notebookEvent || e.RowIndex < 0 || e.ColumnIndex != 2 || notebooks.Rows[e.RowIndex].Cells[2].Value is not true) return;
             notebookEvent = true;
             foreach (DataGridViewRow row in notebooks.Rows) if (row.Index != e.RowIndex) row.Cells[2].Value = false;
@@ -213,6 +228,7 @@ internal sealed class SettingsDialog : Form
         int number = 1; var names = notebooks.Rows.Cast<DataGridViewRow>().Select(r => Convert.ToString(r.Cells[0].Value)).ToHashSet();
         while (names.Contains(UiText.T("单词本 ") + number)) number++;
         int index = notebooks.Rows.Add(UiText.T("单词本 ") + number, "vocabulary-" + number + ".md", notebooks.Rows.Count == 0);
+        notebooks.Rows[index].Cells[1].Tag = "vocabulary-" + number + ".md";
         notebooks.Rows[index].Tag = Guid.NewGuid().ToString("N"); notebooks.CurrentCell = notebooks.Rows[index].Cells[0];
     }
     void RemoveNotebook()
@@ -270,12 +286,12 @@ internal sealed class SettingsDialog : Form
         if (!Uri.TryCreate(baseUrl.Text.Trim().TrimEnd('/') + "/", UriKind.Absolute, out var uri) || uri.Scheme != "https" || !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment) || !string.IsNullOrEmpty(uri.UserInfo)) throw new InvalidOperationException("请输入有效的 HTTPS 基础地址。");
         if (string.IsNullOrWhiteSpace(model.Text)) throw new InvalidOperationException("请填写模型名称。");
         var c = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(config, AppConfig.Json), AppConfig.Json)!;
-        c.BaseUrl = baseUrl.Text.Trim().TrimEnd('/'); c.Model = model.Text.Trim(); c.VisionModel = string.IsNullOrWhiteSpace(visionModel.Text) ? c.Model : visionModel.Text.Trim(); c.ModelProvider = Value(provider); c.ScreenshotEngine = Value(engine);
+        c.BaseUrl = ModelPresets.NormalizeBaseUrl(baseUrl.Text); c.Model = model.Text.Trim(); c.VisionModel = string.IsNullOrWhiteSpace(visionModel.Text) ? c.Model : visionModel.Text.Trim(); c.ModelProvider = Value(provider); c.ScreenshotEngine = Value(engine);
         c.ThemeMode = Value(theme); c.AccentColor = accent.Text.Trim(); Ui.ParseAccent(c.AccentColor); c.BackgroundBrightness = brightness.Value; c.LogoFile = logo.Text.Trim();
         c.TemplateFile = PortablePaths.Resolve(template.Text.Trim()); VocabularyTemplate.Load(c.TemplateFile);
         c.TranslationInstruction = instruction.Text.Trim(); c.Glossary = glossary.Text.Trim(); c.ShowFloating = floating.Checked; c.ShowOnStartup = startup.Checked;
         c.HistoryLimit = (int)historyLimit.Value;
-        c.Vocabulary = new VocabularyOptions { SupplementSenses = senses.Checked, IncludePhonetics = phonetics.Checked, GenerateExamples = examples.Checked, IncludeCollocations = collocations.Checked };
+        c.Vocabulary = new VocabularyOptions { IncludeWordForms = wordForms.Checked, IncludePhonetics = phonetics.Checked, GenerateExamples = examples.Checked, IncludeCollocations = collocations.Checked };
         c.UiLanguage = Value(language);
         notebooks.EndEdit();
         c.Notebooks = []; c.DefaultNotebookId = ""; c.ActiveNotebookId = config.ActiveNotebookId;
@@ -290,13 +306,13 @@ internal sealed class SettingsDialog : Form
     internal async Task TestAsync()
     {
         if (!allowConnectionTest) { SetTestResult(new(ConnectionTestKind.Offline)); return; }
-        if (testCancellation != null) return;
+        if (testCancellation != null || catalogCancellation != null) return;
         if (CredentialScope.Origin(baseUrl.Text).Length == 0 || string.IsNullOrWhiteSpace(model.Text))
         { SetTestResult(new(ConnectionTestKind.InvalidConfiguration)); return; }
-        if (apiKey.Text.Trim().Length > 0 || !CredentialScope.Same(config.BaseUrl, baseUrl.Text))
+        if (apiKey.Text.Trim().Length > 0)
         { SetTestResult(new(ConnectionTestKind.SaveKeyFirst)); return; }
         bool keyEnabled = apiKey.Enabled;
-        testCancellation = new CancellationTokenSource(); testButton.Enabled = false;
+        testCancellation = new CancellationTokenSource(); testButton.Enabled = modelsButton.Enabled = false;
         provider.Enabled = baseUrl.Enabled = model.Enabled = apiKey.Enabled = false;
         testStatus.Text = "正在测试连接，仅发送简短测试请求…";
         try
@@ -310,33 +326,104 @@ internal sealed class SettingsDialog : Form
         finally
         {
             testCancellation?.Dispose(); testCancellation = null;
-            if (!IsDisposed) testButton.Enabled = true;
+            if (!IsDisposed) testButton.Enabled = modelsButton.Enabled = true;
             if (!IsDisposed) { provider.Enabled = baseUrl.Enabled = model.Enabled = true; apiKey.Enabled = keyEnabled; }
         }
     }
-    void SetTestResult(ConnectionTestResult result) { lastTest = result; testStatus.Text = result.MessageKey; }
+    void SetTestResult(ConnectionTestResult result) { lastTest = result; testStatus.Text = result.Message; }
     void ServiceChanged() { lastTest = null; testStatus.Text = ""; RefreshServiceText(); }
+    void RefreshSavedKey()
+    {
+        try { savedKeyAvailable = CredentialScope.Origin(baseUrl.Text).Length > 0 && credentials.HasKey(baseUrl.Text); }
+        catch { savedKeyAvailable = false; }
+    }
+    void ResetModelChoices()
+    {
+        string text = model.Text, vision = visionModel.Text;
+        model.Items.Clear(); visionModel.Items.Clear();
+        if (Uri.TryCreate(baseUrl.Text, UriKind.Absolute, out var uri) && ModelPresets.IsDeepSeek(uri))
+        {
+            model.Items.AddRange(new object[] { ModelPresets.Model, "deepseek-v4-pro" });
+            visionModel.Items.AddRange(new object[] { ModelPresets.Model, "deepseek-v4-pro" });
+        }
+        model.Text = text; visionModel.Text = vision;
+    }
+    async Task FetchModelsAsync()
+    {
+        if (!allowConnectionTest) { SetTestResult(new(ConnectionTestKind.Offline)); return; }
+        if (catalogCancellation != null || testCancellation != null) return;
+        string url = ModelPresets.NormalizeBaseUrl(baseUrl.Text);
+        if (CredentialScope.Origin(url).Length == 0) { SetTestResult(new(ConnectionTestKind.InvalidConfiguration)); return; }
+        bool keyEnabled = apiKey.Enabled;
+        catalogCancellation = new CancellationTokenSource();
+        provider.Enabled = baseUrl.Enabled = model.Enabled = visionModel.Enabled = apiKey.Enabled = modelsButton.Enabled = testButton.Enabled = false;
+        lastTest = null; testStatus.Text = "正在获取此服务的模型列表…";
+        try
+        {
+            SaveKeyDraft(url);
+            apiKey.Clear(); RefreshSavedKey(); RefreshServiceText();
+            var ids = await ModelCatalog.FetchAsync(url, credentials, catalogCancellation.Token);
+            if (IsDisposed) return;
+            string text = model.Text, vision = visionModel.Text;
+            model.BeginUpdate(); visionModel.BeginUpdate();
+            try
+            {
+                model.Items.Clear(); visionModel.Items.Clear();
+                model.Items.AddRange(ids); visionModel.Items.AddRange(ids);
+                model.Text = text; visionModel.Text = vision;
+            }
+            finally { model.EndUpdate(); visionModel.EndUpdate(); }
+            testStatus.Text = UiText.F("已获取 {0} 个模型，请从下拉框选择，也可手动填写。", ids.Length);
+        }
+        catch (OperationCanceledException) { if (!IsDisposed) testStatus.Text = "已取消获取模型。"; }
+        catch (Exception ex)
+        {
+            if (!IsDisposed) testStatus.Text = ex is InvalidOperationException or InvalidDataException
+                ? SecretRedactor.Redact(UiText.T(ex.Message)) : UiText.T("无法获取模型，请检查服务地址或手动填写模型 ID。");
+        }
+        finally
+        {
+            catalogCancellation?.Dispose(); catalogCancellation = null;
+            if (!IsDisposed)
+            {
+                provider.Enabled = baseUrl.Enabled = model.Enabled = visionModel.Enabled = modelsButton.Enabled = testButton.Enabled = true;
+                apiKey.Enabled = keyEnabled;
+            }
+        }
+    }
+    void SaveKeyDraft(string url)
+    {
+        string replacement = apiKey.Text.Trim();
+        SecretRedactor.Register(replacement);
+        if (replacement.Any(char.IsWhiteSpace) || replacement.Any(char.IsControl) || replacement.Length > 1000)
+            throw new InvalidOperationException("API Key 格式无效，请重新粘贴完整密钥。");
+        if (replacement.Length > 0) credentials.Save(replacement, url);
+    }
     void RefreshServiceText()
     {
-        string hint = savedKeyAvailable && CredentialScope.Same(config.BaseUrl, baseUrl.Text)
-            ? "已保存密钥；留空保留，输入新密钥替换。" : "粘贴此服务的 API Key。";
+        string hint = savedKeyAvailable ? "●●●●●●●●●●●●" : "粘贴此服务的 API Key。";
         apiKey.PlaceholderText = UiText.T(hint);
-        keyNotice.Text = "密钥只保存到 Windows 凭据管理器，留空保留已保存密钥。\n输入新密钥后请先保存设置，再测试连接。";
-        getKeyButton.Enabled = Value(provider) == "deepseek";
+        keyNotice.Text = "黑点表示此服务已有密钥，不含真实内容，无法复制；留空保留。\n新密钥可随设置保存，也可点击「获取模型」先保存并读取列表。";
+        getKeyButton.Enabled = Value(provider) is "deepseek" or "gitee";
         baseUrl.ReadOnly = Value(provider) == "deepseek";
-        if (lastTest != null) testStatus.Text = lastTest.MessageKey;
+        if (lastTest != null) testStatus.Text = lastTest.Message;
     }
     void ChangeProvider()
     {
-        if (previousProvider == "custom") customDraft = (baseUrl.Text, model.Text, visionModel.Text);
+        serviceDrafts[previousProvider] = (baseUrl.Text, model.Text, visionModel.Text);
         previousProvider = Value(provider);
-        if (previousProvider == "deepseek")
-        { baseUrl.Text = ModelPresets.BaseUrl; model.Text = visionModel.Text = ModelPresets.Model; }
-        else { baseUrl.Text = customDraft.Url; model.Text = customDraft.Text; visionModel.Text = customDraft.Vision; }
-        apiKey.Clear(); lastTest = null; testStatus.Text = ""; RefreshServiceText();
+        (string Url, string Text, string Vision) draft = serviceDrafts.GetValueOrDefault(previousProvider, previousProvider switch
+        {
+            "deepseek" => (ModelPresets.BaseUrl, ModelPresets.Model, ModelPresets.Model),
+            "gitee" => (ModelPresets.GiteeBaseUrl, "", ""),
+            _ => ("", "", "")
+        });
+        baseUrl.Text = draft.Url; model.Text = draft.Text; visionModel.Text = draft.Vision;
+        ResetModelChoices(); apiKey.Clear(); RefreshSavedKey(); lastTest = null; testStatus.Text = ""; RefreshServiceText();
     }
     void Save()
     {
+        if (testCancellation != null || catalogCancellation != null) return;
         try
         {
             SecretRedactor.Register(apiKey.Text);
@@ -356,12 +443,7 @@ internal sealed class SettingsDialog : Form
                 { var temp = Path.Combine(folder, Guid.NewGuid().ToString("N") + ".png"); try { image.Save(temp, System.Drawing.Imaging.ImageFormat.Png); File.Move(temp, stored, true); } finally { if (File.Exists(temp)) File.Delete(temp); } }
                 c.LogoFile = stored;
             }
-            string replacement = apiKey.Text.Trim();
-            if (replacement.Any(char.IsWhiteSpace) || replacement.Any(char.IsControl) || replacement.Length > 1000)
-                throw new InvalidOperationException("API Key 格式无效，请重新粘贴完整密钥。");
-            if (replacement.Length == 0 && savedKeyAvailable && !CredentialScope.Same(config.BaseUrl, c.BaseUrl))
-                throw new InvalidOperationException("更换服务地址时，请输入并保存对应服务的新密钥。");
-            if (replacement.Length > 0) credentials.Save(replacement, c.BaseUrl);
+            SaveKeyDraft(c.BaseUrl);
             c.Save(); apiKey.Clear();
             if (c.HistoryLimit == 0) historyStore?.Clear(); else historyStore?.Trim(c.HistoryLimit);
             config.ModelProvider = c.ModelProvider; config.BaseUrl = c.BaseUrl; config.Model = c.Model; config.VisionModel = c.VisionModel; config.ScreenshotEngine = c.ScreenshotEngine;

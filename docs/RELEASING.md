@@ -21,7 +21,7 @@ The output is `dist/WordsCat-VERSION-win-x64.zip` plus `dist/SHA256SUMS.txt`. Th
 
 Do not include a fixed WebView2 browser or silently install system components. The app uses the installed Edge WebView2 Runtime and retains text views if it is unavailable.
 
-The locally validated 0.3.7 archive is `dist/WordsCat-0.3.7-win-x64.zip`; evidence is in [VALIDATION-v0.3.7.md](VALIDATION-v0.3.7.md). It is an uncommitted working-tree package (`sourceDirty: true`), not a published GitHub Release. Previous archives are retained.
+The latest locally validated archive is `dist/WordsCat-0.3.9-win-x64.zip`; evidence is in [VALIDATION-v0.3.9.md](VALIDATION-v0.3.9.md). It is an uncommitted working-tree package (`sourceDirty: true`), not a published GitHub Release. Previous archives are retained.
 
 ## Verify the actual archive
 

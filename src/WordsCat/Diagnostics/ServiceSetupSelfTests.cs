@@ -57,7 +57,7 @@ internal static class ServiceSetupSelfTests
         foreach (var test in new[] {
             (HttpStatusCode.OK, "normal", ConnectionTestKind.Success), (HttpStatusCode.Unauthorized, "normal", ConnectionTestKind.InvalidKey),
             (HttpStatusCode.PaymentRequired, "normal", ConnectionTestKind.QuotaOrRateLimit), (HttpStatusCode.TooManyRequests, "normal", ConnectionTestKind.QuotaOrRateLimit),
-            (HttpStatusCode.OK, "network", ConnectionTestKind.NetworkOrTimeout), (HttpStatusCode.OK, "timeout", ConnectionTestKind.NetworkOrTimeout),
+            (HttpStatusCode.OK, "network", ConnectionTestKind.NetworkOrTimeout), (HttpStatusCode.OK, "timeout", ConnectionTestKind.Timeout),
             (HttpStatusCode.OK, "html", ConnectionTestKind.InvalidResponse), (HttpStatusCode.OK, "shape", ConnectionTestKind.InvalidResponse) })
         {
             var handler = new ProbeHandler { Status = test.Item1, Mode = test.Item2 }; var vault = new FakeVault(true);

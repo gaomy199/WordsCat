@@ -26,6 +26,15 @@ internal static class ModelPresets
     internal const string BaseUrl = "https://api.deepseek.com";
     internal const string Model = "deepseek-flash";
     internal const string CredentialTarget = "ReadDock.DeepSeek.ApiKey.v1";
+    internal const string GiteeBaseUrl = "https://ai.gitee.com/v1";
+    internal static bool IsGitee(Uri endpoint) => endpoint.Host.Equals("ai.gitee.com", StringComparison.OrdinalIgnoreCase);
+    internal static string NormalizeBaseUrl(string value)
+    {
+        value = value.Trim().TrimEnd('/');
+        if (Uri.TryCreate(value, UriKind.Absolute, out var uri) && IsGitee(uri) && uri.AbsolutePath == "/")
+            return value + "/v1";
+        return value;
+    }
     internal static bool IsDeepSeek(Uri endpoint) => endpoint.Host.Equals("api.deepseek.com", StringComparison.OrdinalIgnoreCase);
     internal static void Apply(JsonObject payload, Uri endpoint)
     {

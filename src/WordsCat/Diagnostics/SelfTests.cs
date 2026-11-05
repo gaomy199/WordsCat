@@ -13,10 +13,11 @@ internal static class SelfTests
     public static async Task RunAsync(string directory, string? regressionDirectory = null)
     {
         Directory.CreateDirectory(directory);
-        var report = new StringBuilder("WordsCat 0.3.8 verification\n" + DateTimeOffset.Now.ToString("O") + "\n\n");
+        var report = new StringBuilder("WordsCat " + typeof(AppConfig).Assembly.GetName().Version + " verification\n" + DateTimeOffset.Now.ToString("O") + "\n\n");
         await SecuritySelfTests.RunAsync(directory);
         await ModelServiceSelfTests.RunAsync(directory);
         await ServiceSetupSelfTests.RunAsync(directory);
+        await ConnectionProtocolSelfTests.RunAsync();
         report.AppendLine("PASS: service presets and onboarding policy; minimal connection probe and bilingual missing/invalid-key, quota/rate, network/timeout and malformed-response categories; fake vault only");
         report.AppendLine("PASS: interchangeable text/image model capabilities, old config/credential target, default wire contract, 401/429, bounded retry, total deadline/cancellation and non-JSON responses (local mocks only)");
         report.AppendLine("PASS: secret detection/redaction, exception and HTTP boundaries, settings JSON and protected history; fixed fake credential and local handlers only");

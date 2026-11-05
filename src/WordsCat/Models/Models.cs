@@ -45,9 +45,14 @@ public sealed class AppConfig
 
     public static AppConfig Load()
     {
-        var c = File.Exists(AppPaths.ConfigFile)
+        bool hasConfig = File.Exists(AppPaths.ConfigFile);
+        var c = hasConfig
             ? JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(AppPaths.ConfigFile), Json) ?? throw new InvalidDataException("settings.json 内容为空。")
             : new AppConfig();
+        // Preserve legacy target/default choices before merging copied notebooks.
+        // A fresh directory with existing notebooks should not gain a phantom default.
+        if (hasConfig) c.NormalizeNotebooks();
+        c.DiscoverDataNotebooks();
         c.NormalizeNotebooks();
         if (!File.Exists(c.TemplateFile) && string.Equals(Path.GetFullPath(c.TemplateFile), Path.GetFullPath(Path.Combine(AppPaths.DataDirectory, "vocabulary.template.json")), StringComparison.OrdinalIgnoreCase))
             File.Copy(AppPaths.DefaultTemplate, c.TemplateFile);
@@ -55,13 +60,42 @@ public sealed class AppConfig
         c.SchemaVersion = 2;
         return c;
     }
+    private void DiscoverDataNotebooks()
+    {
+        if (!Directory.Exists(AppPaths.DataDirectory) || Notebooks.Count >= 40) return;
+        string[] files;
+        try
+        {
+            // Only direct Markdown children: do not import backups, caches or subfolders.
+            // Read filenames only; discovering a notebook never parses or changes its content.
+            files = Directory.GetFiles(AppPaths.DataDirectory, "*", SearchOption.TopDirectoryOnly)
+                .Where(file => file.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+                .Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return; }
+        var paths = Notebooks.Select(n => PortablePaths.Resolve(n.File)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var names = Notebooks.Select(n => n.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (string file in files)
+        {
+            if (Notebooks.Count >= 40) break;
+            string path = Path.GetFullPath(file);
+            if (!paths.Add(path)) continue;
+            string stem = Path.GetFileNameWithoutExtension(path), name = stem;
+            if (string.IsNullOrWhiteSpace(stem)) continue;
+            int suffix = 2;
+            while (!names.Add(name)) name = stem + " (" + suffix++ + ")";
+            Notebooks.Add(new NotebookTarget { Name = name, File = path });
+        }
+    }
     public void NormalizeNotebooks()
     {
         Vocabulary ??= new();
         TemplateFile = PortablePaths.Resolve(TemplateFile);
         if (!string.IsNullOrWhiteSpace(LogoFile)) LogoFile = PortablePaths.Resolve(LogoFile);
-        if (ModelProvider is not ("deepseek" or "custom"))
-            ModelProvider = Uri.TryCreate(BaseUrl, UriKind.Absolute, out var providerUri) && ModelPresets.IsDeepSeek(providerUri) ? "deepseek" : "custom";
+        BaseUrl = ModelPresets.NormalizeBaseUrl(BaseUrl);
+        if (ModelProvider is not ("deepseek" or "gitee" or "custom"))
+            ModelProvider = Uri.TryCreate(BaseUrl, UriKind.Absolute, out var providerUri)
+                ? ModelPresets.IsDeepSeek(providerUri) ? "deepseek" : ModelPresets.IsGitee(providerUri) ? "gitee" : "custom" : "custom";
         if (RequestTimeoutSeconds is < 1 or > 600 || MaxRetries is < 0 or > 5)
             throw new InvalidDataException("模型请求超时须为 1—600 秒，重试次数须为 0—5。");
         UiLanguage = UiLanguage == "en" ? "en" : "zh-CN";
@@ -77,6 +111,13 @@ public sealed class AppConfig
             if (n.Name.Length == 0 || string.IsNullOrWhiteSpace(n.File)) throw new InvalidDataException("请填写单词本名称和 Markdown 路径。");
             n.File = PortablePaths.Resolve(n.File);
             if (!n.File.EndsWith(".md", StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("单词本路径必须以 .md 结尾。");
+            if (NotebookTarget.IsAutomaticName(n.Name))
+            {
+                string stem = Path.GetFileNameWithoutExtension(n.File), name = stem;
+                int suffix = 2;
+                while (Notebooks.Any(other => !ReferenceEquals(n, other) && string.Equals(other.Name, name, StringComparison.OrdinalIgnoreCase))) name = stem + " (" + suffix++ + ")";
+                n.Name = name;
+            }
         }
         if (Notebooks.Select(n => n.Id).Distinct().Count() != Notebooks.Count ||
             Notebooks.Select(n => n.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() != Notebooks.Count ||
@@ -115,6 +156,7 @@ public sealed class NotebookTarget
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Name { get; set; } = "";
     public string File { get; set; } = "";
+    internal static bool IsAutomaticName(string name) => Regex.IsMatch(name.Trim(), @"^(?:单词本|Notebook)\s*\d+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     public override string ToString() => Name;
     public NotebookTarget Copy() => new() { Id = Id, Name = Name, File = File };
 }
@@ -156,17 +198,57 @@ public sealed class VocabularyTemplate
     public VocabularyTemplate WithOptions(VocabularyOptions options)
     {
         var copy = JsonSerializer.Deserialize<VocabularyTemplate>(JsonSerializer.Serialize(this, AppConfig.Json), AppConfig.Json)!;
+        var meaning = copy.Fields.FirstOrDefault(f => f.Key == "meaning");
+        if (meaning?.Label == "语境释义") meaning.Label = "释义";
+        if (meaning != null && meaning.Description == "结合文献原句的简明中文释义")
+            meaning.Description = "简明中文释义：当前语境义在前，再按词性补充该词的其他常见含义；避免生僻义";
+        copy.EntryTemplate = copy.EntryTemplate.Replace("**语境释义**", "**释义**");
+        // Upgrade reserved optional fields in memory, preserving the user's template file.
+        var oldSenses = copy.Fields.FirstOrDefault(f => f.Key == "other_meanings");
+        if (oldSenses != null)
+        {
+            copy.Fields.Remove(oldSenses);
+            var forms = new VocabularyOptions().Fields().Single(f => f.Key == "word_forms");
+            if (!copy.Fields.Any(f => f.Key == forms.Key)) copy.Fields.Add(forms);
+            copy.EntryTemplate = copy.EntryTemplate.Replace("{{other_meanings}}", "{{word_forms}}")
+                .Replace("其他常见词性与释义", "常见变形");
+        }
         foreach (var field in options.Fields())
         {
             if (!copy.Fields.Any(f => f.Key == field.Key)) copy.Fields.Add(field);
             if (!copy.EntryTemplate.Contains("{{" + field.Key + "}}", StringComparison.Ordinal))
+                copy.AppendFieldLine(field);
+        }
+        var phonetic = copy.Fields.FirstOrDefault(f => f.Key == "phonetic");
+        if (phonetic != null)
+        {
+            copy.Fields.Remove(phonetic);
+            int lemma = copy.Fields.FindIndex(f => f.Key == "lemma");
+            copy.Fields.Insert(lemma >= 0 ? lemma + 1 : Math.Min(1, copy.Fields.Count), phonetic);
+            // Only move a complete standard field line; retain inline custom placeholders.
+            string pattern = @"(?m)^[ \t]*-[ \t]*\*\*" + Regex.Escape(phonetic.Label) + @"\*\*[:：][ \t]*\{\{phonetic\}\}[ \t]*\r?$(?:\n)?";
+            if (Regex.IsMatch(copy.EntryTemplate, pattern))
             {
-                string line = "- **" + field.Label + "**：{{" + field.Key + "}}\n";
-                int separator = copy.EntryTemplate.LastIndexOf("\n---", StringComparison.Ordinal);
-                copy.EntryTemplate = separator >= 0 ? copy.EntryTemplate.Insert(separator, "\n" + line) : copy.EntryTemplate.TrimEnd() + "\n" + line;
+                copy.EntryTemplate = Regex.Replace(copy.EntryTemplate, pattern, "");
+                var lemmaLine = Regex.Match(copy.EntryTemplate, @"(?m)^.*\{\{lemma\}\}[^\r\n]*(?:\r?\n|$)");
+                if (lemmaLine.Success)
+                {
+                    int position = lemmaLine.Index + lemmaLine.Length;
+                    string prefix = lemmaLine.Value.EndsWith('\n') ? "" : "\n";
+                    copy.EntryTemplate = copy.EntryTemplate.Insert(position, prefix + FieldLine(phonetic));
+                }
+                else copy.AppendFieldLine(phonetic);
             }
         }
         return copy;
+    }
+    private static string FieldLine(FieldSpec field) => "- **" + field.Label + "**：{{" + field.Key + "}}\n";
+    private void AppendFieldLine(FieldSpec field)
+    {
+        int separator = EntryTemplate.LastIndexOf("\n---", StringComparison.Ordinal);
+        EntryTemplate = separator >= 0
+            ? EntryTemplate[..separator].TrimEnd() + "\n" + FieldLine(field) + EntryTemplate[separator..]
+            : EntryTemplate.TrimEnd() + "\n" + FieldLine(field);
     }
     public string Render(WordEntry entry)
     {

@@ -10,7 +10,7 @@ WordsCat (单词猫) is a Windows desktop reading companion for Chinese–Englis
 - Read formulas with bundled KaTeX, edit recognized text, and compare it with the original capture.
 - View results in a lightweight popup; switch between source and translation and select words to save.
 - Ask follow-up questions about the current selection, keeping independent translations separate.
-- Review vocabulary before saving to multiple Markdown notebooks, with duplicate checks and undo. Switch common senses, IPA, AI examples and collocations on or off in settings.
+- Review vocabulary before saving to multiple Markdown notebooks, with duplicate checks and undo. Meaning combines contextual and other common senses. Switch common word forms (up to 3), IPA, AI examples and collocations on or off in settings.
 - Move the whole app folder with its internal notebooks and templates; internal paths are saved relative to the settings directory.
 - Keep recent translations locally, encrypted for the current Windows account.
 - Choose DeepSeek or a custom OpenAI-compatible model service, with a connection test and first-use setup guide.
@@ -32,7 +32,7 @@ Microsoft Edge WebView2 Runtime enables formula reading. Text views remain usabl
 Run this in the download folder, using your archive's filename:
 
 ```powershell
-Get-FileHash .\WordsCat-0.3.7-win-x64.zip -Algorithm SHA256
+Get-FileHash .\WordsCat-0.3.9-win-x64.zip -Algorithm SHA256
 ```
 
 Compare the result with the matching line in `SHA256SUMS.txt`; case does not matter. Use the download only if the hashes match.
@@ -120,7 +120,7 @@ Check [Actions](https://github.com/gaomy199/WordsCat/actions) for hosted run res
 - [Development guide](docs/DEVELOPMENT.md) and [release instructions](docs/RELEASING.md)
 - [Contributing](CONTRIBUTING.md), including human diff review and verification for AI-assisted changes
 - [Security reporting](SECURITY.md)
-- [Changelog](CHANGELOG.md) and [0.3.7 validation record](docs/VALIDATION-v0.3.7.md)
+- [Changelog](CHANGELOG.md) and [0.3.9 validation record](docs/VALIDATION-v0.3.9.md)
 - [Project state](docs/PROJECT_STATE.md) and [confirmed requirements](docs/REQUIREMENTS.md)
 
 ## License
