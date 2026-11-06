@@ -34,7 +34,7 @@ internal static class PopupWordSelfTests
     {
         var handler = new WordHandler(); var vault = new ServiceSetupSelfTests.FakeVault(true);
         string notebook = Path.Combine(AppPaths.DataDirectory, "popup-collection-" + Guid.NewGuid().ToString("N") + ".md");
-        using var main = new MainWindow(new AppConfig { TemplateFile = AppPaths.DefaultTemplate, TargetFile = notebook, ShowFloating = false, ServiceGuideSeen = true, Vocabulary = new() { IncludePhonetics = true, GenerateExamples = true, IncludeCollocations = true } }, true, false, new OpenAiCompatibleClient(handler), vault);
+        using var main = new MainWindow(new AppConfig { TemplateFile = AppPaths.DefaultTemplate, TargetFile = notebook, ShowFloating = false, ServiceGuideSeen = true, Vocabulary = new() { IncludePhonetics = true, GenerateExamples = true, IncludeCollocations = true } }, true, false, new OpenAiCompatibleClient(handler), vault, enableGlobalHotkeys: false);
         main.Show(); await Task.Delay(150);
         var source = Children(main).OfType<RichTextBox>().Single(c => c.AccessibleName == "原文");
         source.Text = Original; source.Select(0, 1); main.Hide();

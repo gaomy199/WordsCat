@@ -25,7 +25,9 @@ WordsCat (单词猫) is a Windows desktop reading companion for Chinese–Englis
 3. Verify the ZIP, extract the complete archive to a writable folder, then run `WordsCat/WordsCat.exe`.
 4. Configure a model service and Markdown notebook under **Settings**.
 
-Microsoft Edge WebView2 Runtime enables formula reading. Text views remain usable if WebView2 is unavailable. Keep all extracted files together, including `assets/math/`, `ocr.ps1`, and `vocabulary.template.json`.
+From 0.4.1, the ZIP's `WordsCat/` folder contains the outer `WordsCat.exe` launcher, `START_HERE.txt`, and an `app/` folder holding the application, bundled runtime, resources, guides and licenses. `Data/` is created beside the launcher on first use. Keep the complete `app/` folder with the launcher. The default developer `publish/` remains a flat layout.
+
+Microsoft Edge WebView2 Runtime enables formula reading. Text views remain usable if WebView2 is unavailable. Its local resources, including `assets/math/`, `ocr.ps1`, and `vocabulary.template.json`, remain together inside `app/` in the portable ZIP.
 
 ### Verify a download
 

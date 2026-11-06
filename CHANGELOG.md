@@ -8,6 +8,15 @@
 
 - Refresh the public README with download/setup steps, keyboard shortcuts, developer checks, output-directory guidance and license links. Move temporary working-tree/publication status into project records; keep the English entry documentation and prominent Chinese guide link. Documentation only; application version remains 0.3.7.
 
+## 0.4.1 · 2026-11-06 · Uncommitted
+
+- Validate registration conflicts only for shortcuts changed in the settings draft, so an unavailable existing shortcut cannot block saving language or unrelated preferences. Disable actual desktop hotkey registration/probing in offline previews and UI regression windows; add an in-memory settings regression and separate language-failure flags. Version remains 0.4.1.
+- Synchronize the vocabulary Markdown-order regression with empty-field omission: populate lemma/POS in the order fixture, require the populated headings in the correct order, and separately assert omission for absent/empty/whitespace-only values without removing editable template fields. This changes test inputs/assertions only; application behavior is unchanged.
+- Reorganize future portable ZIPs into an outer native WordsCat.exe launcher, START_HERE.txt and app/ containing the .NET application, runtime, resources, guides and all required licenses. Keep the default flat development publish/ layout.
+- Keep portable Data/ and PreviewData/ beside the launcher using the packaged app/ marker. Preserve explicit --data-dir and all flat-layout/ReadDock data and credential identifiers; do not move or delete existing data. The launcher forwards the raw argument tail and waits/returns the child exit code.
+- Add a native no-CRT launcher build using x64 MinGW-w64 or Visual Studio C++ tools, with the WordsCat icon/manifest/version. Document the new build dependency, selected-file migration without history and the exact maintainer verify/commit/package/tag-release sequence.
+- At the user's request, compile only: no tests, UI inspection, archive creation, commit or release upload. The user performs checks and publication; hosted Release verification remains enabled.
+
 ## 0.3.19 · 2026-11-06 · Uncommitted
 
 - Omit empty vocabulary fields and their headings from Markdown preview and saved entries, treating absent and whitespace-only values as empty. Retain all editable fields in the collection window and preserve nonempty fields on shared template rows; do not rewrite template files or existing notebooks.

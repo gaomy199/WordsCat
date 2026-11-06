@@ -22,7 +22,7 @@ internal static class VocabularySelfTests
             new VocabularyOptions { IncludeWordForms = false, IncludeCollocations = true } })
             Check(basic.WithOptions(option).Fields.Count == (option.GenerateExamples ? 8 : 7), "independent options");
         const string original = "Algorithms segment images.";
-        string json = JsonSerializer.Serialize(new { word = "wrong", meaning = "v. 分割；n. 段、部分", example = "We segment the market.", example_translation = "虚构原句", word_forms = "segmentation [n.] 分割\nsegmented [adj.] 分段的\nsegmenting [v.] 分割\nsegments [n.] 部分", phonetic = "/ˈseɡmənt/", generated_example = "A segment of the series is missing.", generated_example_translation = "这个系列缺了一部分。", collocations = "a series of — 一系列" });
+        string json = JsonSerializer.Serialize(new { word = "wrong", lemma = "segment", part_of_speech = "v.", meaning = "v. 分割；n. 段、部分", example = "We segment the market.", example_translation = "虚构原句", word_forms = "segmentation [n.] 分割\nsegmented [adj.] 分段的\nsegmenting [v.] 分割\nsegments [n.] 部分", phonetic = "/ˈseɡmənt/", generated_example = "A segment of the series is missing.", generated_example_translation = "这个系列缺了一部分。", collocations = "a series of — 一系列" });
         var values = Prompts.ParseWord(json, template, "segment", original);
         Check(values["word"] == "segment" && values["example"] == "" && values["example_translation"] == "" && values["generated_example"].Length > 0 && values["word_forms"].Split('\n').Length == 3, "AI content remains separate from verified source");
         var lean = Prompts.ParseWord(json, basic.WithOptions(off), "segment", original);
@@ -32,8 +32,14 @@ internal static class VocabularySelfTests
         Check(template.Render(new WordEntry { Values = values }).Contains("n. 段、部分"), "extra senses reach deterministic Markdown");
         Check(template.Fields.FindIndex(f => f.Key == "phonetic") == template.Fields.FindIndex(f => f.Key == "lemma") + 1, "IPA editor follows lemma");
         string markdown = template.Render(new WordEntry { Values = values });
-        Check(markdown.IndexOf("**原形**", StringComparison.Ordinal) < markdown.IndexOf("**音标**", StringComparison.Ordinal) && markdown.IndexOf("**音标**", StringComparison.Ordinal) < markdown.IndexOf("**词性**", StringComparison.Ordinal), "IPA Markdown follows lemma before POS");
+        int lemmaAt = markdown.IndexOf("**原形**", StringComparison.Ordinal), phoneticAt = markdown.IndexOf("**音标**", StringComparison.Ordinal), posAt = markdown.IndexOf("**词性**", StringComparison.Ordinal);
+        Check(lemmaAt >= 0 && phoneticAt > lemmaAt && posAt > phoneticAt, "populated IPA Markdown follows lemma before POS");
         Check(markdown.Contains("**释义**") && !markdown.Contains("语境释义") && !markdown.Contains("其他常见词性"), "unified meaning label");
+        Check(!markdown.Contains("**文献原句**") && !markdown.Contains("**原句译文**"), "unverified empty source fields omit Markdown headings");
+        var emptyValues = new Dictionary<string, string> { ["word"] = "segment", ["meaning"] = "分割", ["lemma"] = " \t", ["part_of_speech"] = "", ["word_forms"] = "\r\n" };
+        string emptyMarkdown = template.Render(new WordEntry { Values = emptyValues });
+        Check(emptyMarkdown.Contains("## segment") && emptyMarkdown.Contains("**释义**") && template.Fields.Where(field => field.Key is not ("word" or "meaning")).All(field => !emptyMarkdown.Contains("**" + field.Label + "**")), "missing, empty and whitespace-only fields omit headings while populated fields remain");
+        Check(template.Fields.Count == 11 && template.EntryTemplate.Contains("{{example}}") && template.EntryTemplate.Contains("{{part_of_speech}}"), "empty-value rendering retains editable template fields");
         Check(!JsonSerializer.Deserialize<VocabularyOptions>("{\"supplement_senses\":false}", AppConfig.Json)!.IncludeWordForms, "old off switch migrates");
         Check(JsonSerializer.Deserialize<VocabularyOptions>("{\"include_word_forms\":true,\"supplement_senses\":false}", AppConfig.Json)!.IncludeWordForms, "new switch takes precedence");
         Check(!JsonSerializer.Serialize(all, AppConfig.Json).Contains("supplement_senses"), "only new option key exported");

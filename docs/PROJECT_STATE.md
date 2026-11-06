@@ -1,6 +1,21 @@
 # 项目状态
 
-更新日期：2026-11-06。应用版本：**0.3.19，收藏 Markdown 省略空字段**。按用户要求仅修改并构建更新 publish/，不运行测试或检查、不打包、不 commit/push；不访问真实凭据或模型服务。
+更新日期：2026-11-06。应用版本：**0.4.1，便携包启动入口与 app/ 分层**。用户指定版本号，要求整理第二种发布结构但不运行测试，检查/提交/打包/Release 的命令交给用户执行；不访问真实凭据或用户 Data/。
+
+## 2026-11-06 0.4.1 发布目录整理
+
+- 用户重跑 verify 后，非 UI/OCR 通过，UI 在 Saving English language did not update and persist the UI 停止，报告 .test-results/930b5eba4c8a4909954ae0acaf1a9480/。仅对白名单字段读取隔离 ui/settings.json，uilanguage 仍为 zh-CN，未保存快捷键；进程元数据表明另有 E 盘 WordsCat 运行。源码确认每次保存都会探测全部热键，已占用的原组合也会挡住仅语言修改；未现场重放，旧实例引起的冲突与此现象一致。
+- 本轮改为仅对实际改动的组合执行注册冲突探测，保留重复检测与真正修改热键时的占用拦截。离线预览主窗禁用真实全局热键，PopupWordSelfTests 的注入模型窗口也显式禁用；窗口回归不再注册/注销/探测真实桌面组合。新增本地假探测回调断言（语言保存不探测、改一项只探测该项），英文保存失败信息拆分按钮/输入提示/持久化布尔结果，不输出凭据或用户内容。版本仍为 0.4.1，build.ps1 -Offline 成功更新 publish/，无编译警告；遵循原要求不执行测试、UI 或模型请求，不宣称复测通过。未操作 E 盘实例、用户 Data 或真实凭据。
+
+- 用户自行运行 verify.ps1 -IncludeUi 时，在非 UI 的 Vocabulary regression: IPA Markdown follows lemma before POS 停止。源码核对确认该排版样本没有 lemma/part_of_speech 值，而 0.3.19 起空标题应省略，旧断言仍要求这些空标题存在。本轮仅补齐排序样本的原形/词性，并使排序断言显式要求标题存在；另加缺失/空/纯空白字段省略、非空内容与模板字段保留断言。产品渲染与用户 Data 不改，版本仍为 0.4.1。build.ps1 -Offline 成功更新 publish/，无编译警告；遵循此前要求不替用户重跑测试，不能声称整套验证通过。
+
+- 正式打包阶段将原全部程序/运行时/资源/说明/许可放入 WordsCat/app/，外层只放 WordsCat.exe 原生启动入口和 START_HERE.txt。Data/ 不进入 ZIP，在外层由程序首次运行或用户复制时建立。开发 build.ps1 的 publish/ 继续平铺，不移动、删除已有用户文件。
+- 新增 src/Launcher/launcher.c 与 scripts/build-launcher.ps1：x64 原生 no-CRT 入口，仅使用 Windows API，按自身路径启动 app/WordsCat.exe，原始参数尾部原样转发，不通过 shell、不读取配置或凭据；等待子程序并转交退出码，供既有 verify.ps1 从外层入口运行。嵌入原图标/manifest 和 0.4.1 版本。支持 MinGW-w64 GCC/windres；无 GCC 时定位 Visual Studio C++/Windows SDK，供 Windows runner 使用，不采集 shell 全量环境。
+- app/portable-layout.json 标记启用外层 Data/PreviewData/；显式 --data-dir 优先，旧平铺版本/开发 publish 的原位置与数据格式不变，AppContext.BaseDirectory 仍指向真实资源目录。ReadDock 凭据/互斥体等兼容标识及设置相对路径基准保留。不自动迁移旧 Data。
+- package-release.ps1 的归档枚举基准改为外层，保留自包含、运行时许可、精确文件集合、标准 ZIP 路径、私有文件拒绝、RequireClean 和 SHA256 守卫；release-info.json 位于 app/ 并记录新布局。Release workflow 保留从外层入口解压验证，更新用户说明。版本及中英文使用/开发/发布/需求文档同步为 0.4.1。
+- 用户不迁移历史时，可向新建外层 Data 复制最新 settings.json、所选 vocabulary.template.json 和两个 Markdown；如有其他所选模板/Appearance Logo，也需复制对应文件。外部路径文件仍保留原处。不复制 reading-history.dat、缓存和备份；若目标已有历史，仅覆盖这几项不会清除它。未读取或操作用户实际 Data、配置或历史。
+- 原生启动器 MinGW 编译已成功，输出 .build/portable-layout-0.4.1/WordsCat/WordsCat.exe；build.ps1 -Offline 成功更新 publish/ 为 0.4.1，无编译警告。遵循用户要求不运行测试、UI、检查脚本、启动器/程序执行或打包；无本版运行/解压验证证据，不把旧版验收作为本版证据。MSVC 分支和 GitHub 托管流程未执行，后续由用户按 docs/RELEASING.md 的命令检查。
+- 无剩余实现项；尚待用户检查、提交、从干净源码生成 ZIP 并推送 v0.4.1 触发发布。未暂存/提交/push/tag 或生成 ZIP，不访问凭据或服务，旧 fixture/第三方原始文件保持。
 
 ## 2026-11-06 0.3.19 收藏 Markdown 空字段
 

@@ -58,5 +58,5 @@ jobs:
         run: |
           $taskProject = [xml](Get-Content src/WordsCat/WordsCat.csproj -Raw)
           $taskVersion = [string]$taskProject.Project.PropertyGroup.Version
-          gh release create "$env:RELEASE_TAG" "dist/WordsCat-$taskVersion-win-x64.zip" dist/SHA256SUMS.txt --verify-tag --generate-notes --title "WordsCat $taskVersion" --notes "Windows 11 x64 portable ZIP; extract all files and run WordsCat.exe. .NET is bundled. Unsigned build may trigger SmartScreen; verify SHA256SUMS.txt. Preserve Data and notebooks when upgrading. WebView2 enables formula reading; text fallback remains available."
+          gh release create "$env:RELEASE_TAG" "dist/WordsCat-$taskVersion-win-x64.zip" dist/SHA256SUMS.txt --verify-tag --generate-notes --title "WordsCat $taskVersion" --notes "Windows 11 x64 portable ZIP; extract all files and run the outer WordsCat.exe. Keep the app folder beside it. .NET is bundled. Unsigned build may trigger SmartScreen; verify SHA256SUMS.txt. Preserve Data beside the outer launcher and notebooks when upgrading. WebView2 enables formula reading; text fallback remains available."
           if ($LASTEXITCODE -ne 0) { throw 'GitHub Release creation failed; existing releases are never overwritten.' }

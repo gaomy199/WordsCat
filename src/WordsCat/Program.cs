@@ -16,7 +16,7 @@ internal static class Program
         var dataIndex = Array.IndexOf(args, "--data-dir");
         AppPaths.DataDirectory = dataIndex >= 0 && dataIndex + 1 < args.Length
             ? Path.GetFullPath(args[dataIndex + 1])
-            : Path.Combine(AppContext.BaseDirectory, "Data");
+            : Path.Combine(AppPaths.InstallationDirectory, "Data");
         int cleanupIndex = Array.IndexOf(args, "--cleanup-cache");
         if (cleanupIndex >= 0) { if (cleanupIndex + 1 < args.Length) ReadingRuntime.CleanupAfterExit(AppPaths.DataDirectory, args[cleanupIndex + 1]); return; }
         if (args.Contains("--render-self-test")) { UiSelfTests.Run(AppPaths.DataDirectory); return; }
@@ -39,7 +39,7 @@ internal static class Program
             return;
         }
         bool offlinePreview = args.Contains("--offline-preview");
-        if (offlinePreview && dataIndex < 0) AppPaths.DataDirectory = Path.Combine(AppContext.BaseDirectory, "PreviewData");
+        if (offlinePreview && dataIndex < 0) AppPaths.DataDirectory = Path.Combine(AppPaths.InstallationDirectory, "PreviewData");
         using var mutex = new Mutex(true, offlinePreview ? @"Local\ReadDock.OfflinePreview.v1" : @"Local\ReadDock.Desktop.v1", out bool isNew);
         if (!isNew) { UiText.Show("单词猫已经在运行，请查看屏幕悬浮图标或系统托盘。", "单词猫 WordsCat"); return; }
         try
@@ -58,6 +58,12 @@ internal static class Program
 
 internal static class AppPaths
 {
+    // Only the packaged app/ layout opts into a sibling Data directory.
+    // Flat publish output and existing installations retain their original data paths.
+    public static string InstallationDirectory =>
+        string.Equals(Path.GetFileName(Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory)), "app", StringComparison.OrdinalIgnoreCase)
+        && File.Exists(Path.Combine(AppContext.BaseDirectory, "portable-layout.json"))
+            ? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..")) : AppContext.BaseDirectory;
     public static string DataDirectory { get; set; } = "";
     public static string ConfigFile => Path.Combine(DataDirectory, "settings.json");
     public static string DefaultTemplate => Path.Combine(AppContext.BaseDirectory, "vocabulary.template.json");

@@ -1,6 +1,6 @@
 # WordsCat user guide
 
-Version **0.3.19** · Windows 11
+Version **0.4.1** · Windows 11
 
 WordsCat translates short Chinese or English selections and saves reviewed vocabulary to Markdown notebooks.
 
@@ -10,7 +10,11 @@ Download a `WordsCat-VERSION-win-x64.zip` asset from [GitHub Releases](https://g
 
 When packaging locally, the ready-to-run ZIP is written under `dist/`, with its checksum in `dist/SHA256SUMS.txt`. The default `publish/` folder contains the framework-dependent development build.
 
-Version 0.3.19 is built locally as `publish/WordsCat.exe`. No new ZIP is generated for this version. Check the chosen Release for its actual version.
+Version 0.4.1 is built locally as `publish/WordsCat.exe`. No new ZIP is generated in this maintenance task. Check the chosen Release for its actual version.
+
+Portable ZIPs from 0.4.1 have a small outer `WordsCat.exe` launcher and an `app/` folder containing the application, runtime, resources, guides and licenses. Run the outer launcher and keep `app/` beside it. User data belongs in the outer `Data/` beside the launcher; the application creates it on first use. The development `publish/` output retains its original flat layout.
+
+To migrate without old translation history, first exit the old app and create a fresh outer `Data/`. Copy its latest `settings.json`, `vocabulary.template.json` (or the template selected in settings), and the Markdown notebooks. Also copy any other selected template or `Appearance/` logo referenced by settings. External notebook/template paths still require their original files. Leave `reading-history.dat`, caches and old backups behind. This does not remove any history already present in an existing destination Data folder, so use a fresh destination for a history-free migration.
 
 On first launch without a saved key, a short, dismissible guide offers **Open settings** or **Set up later**. Open **Settings → Models & recognition → Model service** and choose **DeepSeek**, **Gitee AI · Moark**, or **Custom OpenAI-compatible**. DeepSeek retains `https://api.deepseek.com` and `deepseek-flash`. The Gitee preset uses `https://ai.gitee.com/v1`; a Gitee homepage URL is also normalized to this API path. For a custom service, enter its HTTPS Base URL.
 

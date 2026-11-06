@@ -72,6 +72,7 @@ internal static class ServiceSetupSelfTests
     }
     internal static async Task RunUiAsync()
     {
+        CheckShortcutSettings();
         var vault = new FakeVault(true); var cfg = new AppConfig { TemplateFile = AppPaths.DefaultTemplate, ServiceGuideSeen = true }; var handler = new ProbeHandler();
         using (var settings = new SettingsDialog(cfg, useCredentials: false, credentialVault: vault, connectionTester: new ConnectionTester(() => new OpenAiCompatibleClient(handler))))
         {
@@ -135,6 +136,39 @@ internal static class ServiceSetupSelfTests
             Require(Find<Button>(guide, "guideLater").Text == "Set up later", "English guide localized"); guide.Close();
         }
         finally { UiText.Language = previousLanguage; }
+    }
+    static void CheckShortcutSettings()
+    {
+        string savedLanguage = UiText.Language;
+        try
+        {
+            var config = new AppConfig { TemplateFile = AppPaths.DefaultTemplate };
+            int probes = 0;
+            HotkeyAction[] seen = [];
+            IReadOnlyList<string> Probe(IReadOnlyList<HotkeyBinding> bindings)
+            {
+                probes++; seen = bindings.Select(binding => binding.Action).ToArray();
+                return Array.Empty<string>(); // In-memory probe; never register desktop shortcuts.
+            }
+            using (var settings = new SettingsDialog(config, useCredentials: false, findHotkeyConflicts: Probe))
+            {
+                settings.Show();
+                Children(settings).OfType<ComboBox>().Single(choice => choice.AccessibleName == "uiLanguage").SelectedIndex = 1;
+                Find<Button>(settings, null, "保存设置").PerformClick();
+                Require(settings.IsDisposed && config.UiLanguage == "en" && AppConfig.Load().UiLanguage == "en" && probes == 0,
+                    "language-only save persists without probing unchanged global shortcuts");
+            }
+            using (var settings = new SettingsDialog(config, useCredentials: false, findHotkeyConflicts: Probe))
+            {
+                settings.Show();
+                Find<TextBox>(settings, "hotkey_TranslateSelection").Text = "Ctrl+Shift+F10";
+                Find<Button>(settings, null, "保存设置").PerformClick();
+                Require(settings.IsDisposed && probes == 1 && seen.SequenceEqual(new[] { HotkeyAction.TranslateSelection })
+                    && config.Hotkeys[HotkeyAction.TranslateSelection.ToString()] == "Ctrl+Shift+F10",
+                    "changed shortcut is still validated without probing unrelated bindings");
+            }
+        }
+        finally { UiText.Language = savedLanguage; }
     }
     static T Find<T>(Control root, string? name, string? caption = null) where T : Control => Children(root).OfType<T>().Single(c => (name == null || c.Name == name) && (caption == null || c.Text == UiText.T(caption)));
     static void SelectCustomProvider(Control root)

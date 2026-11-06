@@ -447,7 +447,15 @@ internal sealed class SettingsDialog : Form
         {
             SecretRedactor.Register(apiKey.Text);
             var c = Proposed();
-            var conflicts = findHotkeyConflicts?.Invoke(AppHotkeys.Resolve(c.Hotkeys));
+            var previous = AppHotkeys.Resolve(config.Hotkeys);
+            var changed = AppHotkeys.Resolve(c.Hotkeys).Where(binding =>
+            {
+                var old = previous.Single(candidate => candidate.Action == binding.Action);
+                return binding.Modifiers != old.Modifiers || binding.Key != old.Key;
+            }).ToArray();
+            // An existing unavailable shortcut must not block unrelated settings.
+            // Keep conflict validation for every shortcut the user actually changes.
+            var conflicts = changed.Length > 0 ? findHotkeyConflicts?.Invoke(changed) : null;
             if (conflicts is { Count: > 0 })
             {
                 UiText.Show(this, UiText.F("以下快捷键无法注册，可能被其他软件或系统占用：{0}。请修改后保存。", string.Join(", ", conflicts)), "自定义快捷键", MessageBoxButtons.OK, MessageBoxIcon.Warning);

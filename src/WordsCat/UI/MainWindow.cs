@@ -6,6 +6,7 @@ internal sealed class MainWindow : Form
 {
     private readonly AppConfig config;
     private readonly bool offlinePreview;
+    private readonly bool enableGlobalHotkeys;
     private readonly ICredentialVault credentials;
     private readonly bool customVault;
     private ServiceSetupGuide? setupGuide;
@@ -51,13 +52,14 @@ internal sealed class MainWindow : Form
     private readonly List<string> hotkeyFailures = [];
     private readonly List<(ToolStripItem Item, HotkeyAction Action)> hotkeyMenuItems = [];
 
-    public MainWindow(AppConfig config, bool previewMode, bool offlinePreview = false, IModelService? modelService = null, ICredentialVault? credentialVault = null)
+    public MainWindow(AppConfig config, bool previewMode, bool offlinePreview = false, IModelService? modelService = null, ICredentialVault? credentialVault = null, bool enableGlobalHotkeys = true)
     {
         api = modelService ?? new OpenAiCompatibleClient();
         customVault = credentialVault != null;
         credentials = credentialVault ?? (offlinePreview ? new DisabledCredentialVault() : new WindowsCredentialVault());
         this.config = config;
         this.offlinePreview = offlinePreview;
+        this.enableGlobalHotkeys = enableGlobalHotkeys && !offlinePreview;
         config.NormalizeNotebooks();
         AppHotkeys.Configure(config);
         UiText.Language = config.UiLanguage;
@@ -512,7 +514,7 @@ internal sealed class MainWindow : Form
             ShowMain(); dialogOpen = true;
             UnregisterHotkeys();
             int oldHistoryLimit = config.HistoryLimit;
-            using var dialog = new SettingsDialog(config, RefreshAppearance, !offlinePreview, history, applyLanguage: RefreshLanguage, credentialVault: offlinePreview && !customVault ? null : credentials, findHotkeyConflicts: FindHotkeyConflicts); dialog.ShowDialog(this);
+            using var dialog = new SettingsDialog(config, RefreshAppearance, !offlinePreview, history, applyLanguage: RefreshLanguage, credentialVault: offlinePreview && !customVault ? null : credentials, findHotkeyConflicts: enableGlobalHotkeys ? FindHotkeyConflicts : null); dialog.ShowDialog(this);
             AppHotkeys.Configure(config);
             RefreshLanguage(config.UiLanguage); SetStatus("就绪");
             if (config.HistoryLimit < oldHistoryLimit) ClearSession();
@@ -567,11 +569,13 @@ internal sealed class MainWindow : Form
     void RegisterHotkeys()
     {
         hotkeyFailures.Clear();
+        if (!enableGlobalHotkeys) return;
         foreach (var binding in AppHotkeys.All)
             if (!Native.RegisterHotKey(Handle, binding.Id, binding.RegistrationModifiers, (uint)binding.Key)) hotkeyFailures.Add(binding.Gesture);
     }
     void UnregisterHotkeys()
     {
+        if (!enableGlobalHotkeys) return;
         foreach (var binding in AppHotkeys.All) Native.UnregisterHotKey(Handle, binding.Id);
     }
     IReadOnlyList<string> FindHotkeyConflicts(IReadOnlyList<HotkeyBinding> bindings)

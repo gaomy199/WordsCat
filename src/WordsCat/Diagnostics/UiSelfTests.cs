@@ -259,8 +259,11 @@ internal static class UiSelfTests
                     SwitchLanguage(1, false);
                     if (UiText.Language != "zh-CN") throw new Exception("Cancelled language selection took effect.");
                     SwitchLanguage(1, true);
-                    if (!Descendants(main).OfType<Button>().Any(b => b.Text == "Settings") || !input.PlaceholderText.StartsWith("Ask about") || AppConfig.Load().UiLanguage != "en")
-                        throw new Exception("Saving English language did not update and persist the UI.");
+                    bool englishButton = Descendants(main).OfType<Button>().Any(b => b.Text == "Settings");
+                    bool englishPlaceholder = input.PlaceholderText.StartsWith("Ask about");
+                    bool englishStored = AppConfig.Load().UiLanguage == "en";
+                    if (!englishButton || !englishPlaceholder || !englishStored)
+                        throw new Exception($"Saving English language did not update and persist the UI (button={englishButton}, placeholder={englishPlaceholder}, stored={englishStored}).");
                     if (originalEditor.Text != "Let $q_1$ be constant.") throw new Exception("Interface language modified source data.");
                     if (brand.Text != "WordsCat" || Descendants(main).OfType<Label>().Any(l => l.Text == "单词猫")) throw new Exception("English sidebar should display WordsCat only.");
                     SwitchLanguage(0, true);

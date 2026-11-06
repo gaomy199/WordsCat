@@ -13,13 +13,15 @@ From the repository root on Windows:
 .\scripts\publish-release.ps1
 ```
 
-The packager builds into a new `.build/release-GUID/WordsCat/` directory rather than reusing `publish/`. It bundles the .NET runtime, formula resources, OCR helper, template, guides, third-party notices, and `START_HERE.txt`. Trimming is disabled for the Windows Forms application.
+The packager builds into a new `.build/release-GUID/WordsCat/app/` directory rather than reusing `publish/`. It bundles the .NET runtime, formula resources, OCR helper, template, guides and third-party notices there. The outer `WordsCat/` contains only the native `WordsCat.exe` launcher, `START_HERE.txt` and `app/`. Trimming is disabled for the Windows Forms application. User Data is created beside the outer launcher and is excluded from the ZIP.
+
+Building the native launcher requires x64 MinGW-w64 (GCC and windres) or Visual Studio C++ Build Tools with a Windows SDK. The local machine can use its installed MinGW; the script also locates the Visual Studio toolchain on GitHub's Windows runner. End users need neither compiler nor separately installed .NET. The launcher only starts the C# application, forwards arguments and waits/returns its exit code, so `verify.ps1 -PublishPath <extracted WordsCat>` continues to exercise the packaged entry point.
 
 `publish-release.ps1` is the public packaging entry point; `package-release.ps1` remains the shared implementation and compatibility entry point. Both accept `-Offline` for cached dependencies and `-RequireClean` to reject uncommitted source. The release workflow requires a clean checkout. LICENSE, NOTICE, SECURITY.md, KaTeX/WebView2 notices, and the actual resolved runtime-pack license/third-party files are required in each self-contained ZIP.
 
 The packager supports Windows PowerShell 5.1 and PowerShell 7. It writes explicit forward-slash ZIP entry names and checks the complete file-name set against staging. The older .NET Framework `CreateFromDirectory` implementation could write backslashes, causing the previous forward-slash executable check to fail even when all files were present. Do not bypass archive verification to work around that error.
 
-The output is `dist/WordsCat-VERSION-win-x64.zip` plus `dist/SHA256SUMS.txt`. The ZIP has a top-level `WordsCat/` folder. `release-info.json` records the application version, architecture, included frameworks, source revision, and whether source changes were uncommitted. Publish only a build with `sourceDirty: false`. `-Force` replaces only the generated ZIP for that version; it does not clean user data directories.
+The output is `dist/WordsCat-VERSION-win-x64.zip` plus `dist/SHA256SUMS.txt`. The ZIP has a top-level `WordsCat/` folder. `app/release-info.json` records the application version, architecture, layout, included frameworks, source revision, and whether source changes were uncommitted. Publish only a build with `sourceDirty: false`. `-Force` replaces only the generated ZIP for that version; it does not clean user data directories.
 
 Do not include a fixed WebView2 browser or silently install system components. The app uses the installed Edge WebView2 Runtime and retains text views if it is unavailable.
 
@@ -35,9 +37,47 @@ Extract to a new directory, then run:
 .\verify.ps1 -PublishPath '.test-results\release-extracted\WordsCat' -IncludeUi
 ```
 
-Check `WordsCat.runtimeconfig.json` contains `includedFrameworks`, and that the extracted folder includes `coreclr.dll`, `hostfxr.dll`, `System.Private.CoreLib.dll` and Windows Forms libraries. To check the runtime is not resolving an installed shared framework, run the extracted self-test with an isolated empty `DOTNET_ROOT`, host tracing, and synthetic `--data-dir`; the trace must resolve the included frameworks to the extracted folder.
+Check `app/WordsCat.runtimeconfig.json` contains `includedFrameworks`, and that `app/` includes `coreclr.dll`, `hostfxr.dll`, `System.Private.CoreLib.dll` and Windows Forms libraries. To check the runtime is not resolving an installed shared framework, run the extracted self-test with an isolated empty `DOTNET_ROOT`, host tracing, and synthetic `--data-dir`; the trace must resolve the included frameworks inside the extracted app folder.
 
 Open the extracted executable through `--offline-preview --data-dir <isolated directory>` and inspect it with Computer Use. Verify the archive has no `Data/`, settings, credentials, screenshots, history, caches, test results, or debugging symbols. Never run a preview using real credentials during release validation.
+
+For 0.4.1, the implementation task deliberately runs builds only at the user's request. No launcher execution, automated tests, archive or release is performed in that task. Before publishing, the maintainer should verify both the app and native entry point, move an extracted copy to a different directory, and check outer Data creation using synthetic/isolated data. The MinGW build result does not establish the unexecuted Visual Studio build path or hosted workflow result.
+
+## Maintainer command order for 0.4.1
+
+Run each block only after the previous block succeeds. These are maintainer instructions, not actions already executed by the agent.
+
+```powershell
+cd "C:\Users\lenovo\Documents\Codex\Projects\ReadDock"
+.\build.ps1
+.\verify.ps1 -IncludeUi
+.\scripts\check-source.ps1
+git diff --check
+git config core.hooksPath .githooks
+git add .
+.\scripts\check-secrets.ps1
+git commit -m "Release WordsCat 0.4.1"
+.\scripts\publish-release.ps1 -RequireClean
+```
+
+Extract and verify the actual ZIP into a new isolated directory:
+
+```powershell
+$taskReleaseCheck = Join-Path $PWD ('.test-results/release-0.4.1-' + [Guid]::NewGuid().ToString('N'))
+Expand-Archive -LiteralPath .\dist\WordsCat-0.4.1-win-x64.zip -DestinationPath $taskReleaseCheck
+.\verify.ps1 -PublishPath (Join-Path $taskReleaseCheck 'WordsCat') -IncludeUi
+.\scripts\check-source.ps1
+```
+
+The root should show `WordsCat.exe`, `START_HERE.txt` and `app/`, with no user Data in the downloaded package. For a manual offline preview, pass an explicit synthetic data directory to the outer launcher. After checks pass, push the source and new version tag to trigger the existing automatic Release job:
+
+```powershell
+git push origin main
+git tag v0.4.1
+git push origin v0.4.1
+```
+
+Watch the Release workflow under GitHub Actions; a successful job creates the Release with ZIP/checksum attachments. Do not separately create the same release while that workflow is running. If `v0.4.1` already exists, stop and inspect its target instead of force-updating it. The hosted job retains its own verification steps; the user's request to skip local agent tests does not disable CI.
 
 ## Publish
 

@@ -1,4 +1,4 @@
-# 单词猫 WordsCat 0.3.19 · Windows 11
+# 单词猫 WordsCat 0.4.1 · Windows 11
 
 中英互译与 Obsidian 生词收藏。
 
@@ -8,7 +8,11 @@
 
 本地打包后的直接可用压缩包位于项目根目录下的 `dist/`，校验文件为 `dist/SHA256SUMS.txt`。默认 `publish/` 是依赖本机 .NET 10 运行时的开发构建目录；生成本地压缩包不会自动上传 GitHub。
 
-当前工作区 0.3.19 编译至 `publish/WordsCat.exe`，本轮不生成新压缩包、不提交、不推送；远端可用版本以所选 Release 为准。
+当前工作区 0.4.1 编译至 `publish/WordsCat.exe`，本轮不生成新压缩包、不提交、不推送；远端可用版本以所选 Release 为准。
+
+从 0.4.1 起，新压缩包采用「外层 WordsCat.exe 启动入口 + app/ 程序子目录」。程序、运行时、公式资源、说明和许可文件放在 app/，使用时双击外层 WordsCat.exe，保留完整 app/。Data/ 放在外层启动入口旁边，首次运行会自动创建；开发用 publish/ 仍沿用原来的平铺结构。
+
+不保留旧翻译历史时，先退出旧程序，在新解压目录的外层新建一个干净的 Data/，复制最近使用的 settings.json、vocabulary.template.json（或设置中选用的模板）和 Markdown 单词本即可。若配置引用其他自定义模板或 Appearance/ 中的 Logo，也要复制对应文件；外部路径的文件仍须保留。无需复制 reading-history.dat、缓存或旧备份。如果目标 Data/ 已经有历史，仅覆盖这几个文件不会清除目标历史，因此应使用新建的 Data/。本次整理不会删除或搬动你原来的文件。
 
 目前提供 Windows 11 x64 便携版本；首次使用在设置中填写 API Key 和单词本。升级先退出旧版，保留原有 Data 文件夹和 Markdown 笔记。
 

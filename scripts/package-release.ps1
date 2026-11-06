@@ -24,9 +24,12 @@ if ((Test-Path -LiteralPath $taskZip) -and -not $Force) { throw ('Package alread
 # A unique fresh directory prevents existing Data, previews and old output from
 # entering a release. Never package an in-use publish/ directory.
 $taskStage = Join-Path $taskRoot ('.build/release-' + [Guid]::NewGuid().ToString('N'))
-$taskApp = Join-Path $taskStage 'WordsCat'
+$taskPortableRoot = Join-Path $taskStage 'WordsCat'
+$taskApp = Join-Path $taskPortableRoot 'app'
 New-Item -ItemType Directory -Path $taskApp -Force | Out-Null
 & (Join-Path $taskRoot 'build.ps1') -OutputPath $taskApp -SelfContained -Runtime $Runtime -Offline:$Offline
+& (Join-Path $PSScriptRoot 'build-launcher.ps1') -OutputPath (Join-Path $taskPortableRoot 'WordsCat.exe')
+[IO.File]::WriteAllText((Join-Path $taskApp 'portable-layout.json'), '{"layout":"launcher-app-v1","dataDirectory":"../Data"}' + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
 Copy-Item -LiteralPath (Join-Path $taskRoot 'THIRD_PARTY_NOTICES.md') -Destination $taskApp
 foreach ($taskLegal in @('LICENSE','NOTICE','SECURITY.md')) {
     Copy-Item -LiteralPath (Join-Path $taskRoot $taskLegal) -Destination $taskApp
@@ -37,19 +40,25 @@ $taskStart = @'
 WordsCat portable for Windows 11 x64
 
 1. Extract the complete ZIP to a writable folder.
-2. Open the WordsCat folder and double-click WordsCat.exe.
+2. Open the WordsCat folder and double-click its outer WordsCat.exe launcher.
 3. Open Settings to configure your API key and Markdown notebooks.
 
 The .NET runtime is included. You do not need the SDK or a separate .NET install.
 Formula reading uses Microsoft Edge WebView2 Runtime. Text views remain available
-if it is missing. Keep assets/math, ocr.ps1 and vocabulary.template.json together.
+if it is missing. Keep the complete app subfolder beside the launcher.
+The app subfolder holds the application, runtime, resources, guides and licenses.
+Data is created beside the outer launcher, not inside app.
 
 Upgrading: exit the old app first. Preserve your existing Data folder and notebooks.
-Read USER_GUIDE.md or USER_GUIDE.zh-CN.md for the complete instructions.
+Copy the latest Data folder beside the outer launcher before first use.
+Without history, copy settings.json, the selected template and your Markdown files;
+also copy any other custom templates or Appearance files referenced by settings.
+Do not copy reading-history.dat if you do not want the old translation history.
+Read app/USER_GUIDE.md or app/USER_GUIDE.zh-CN.md for the complete instructions.
 
 https://github.com/gaomy199/WordsCat/releases/latest
 '@
-[IO.File]::WriteAllText((Join-Path $taskApp 'START_HERE.txt'), $taskStart + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $taskPortableRoot 'START_HERE.txt'), $taskStart + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
 $taskRevision = git -C $taskRoot rev-parse HEAD
 if ($LASTEXITCODE -ne 0) { throw 'Cannot read the source revision.' }
 $taskDirty = @(git -C $taskRoot status --porcelain).Count -gt 0
@@ -79,15 +88,18 @@ foreach ($taskFramework in $taskConfig.runtimeOptions.includedFrameworks) {
     }
     elseif ($taskFramework.name -eq 'Microsoft.NETCore.App') { throw 'Missing .NET runtime third-party notices.' }
 }
-$taskInfo = [ordered]@{ version=$taskVersion; runtime=$Runtime; selfContained=$true; frameworks=$taskConfig.runtimeOptions.includedFrameworks; sourceRevision=$taskRevision; sourceDirty=$taskDirty }
+$taskInfo = [ordered]@{ version=$taskVersion; runtime=$Runtime; selfContained=$true; layout='launcher-app-v1'; dataDirectory='../Data'; frameworks=$taskConfig.runtimeOptions.includedFrameworks; sourceRevision=$taskRevision; sourceDirty=$taskDirty }
 [IO.File]::WriteAllText((Join-Path $taskApp 'release-info.json'), ($taskInfo | ConvertTo-Json) + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
 $taskRequired = @('WordsCat.exe','WordsCat.dll','coreclr.dll','hostfxr.dll','System.Private.CoreLib.dll','System.Windows.Forms.dll','ocr.ps1','vocabulary.template.json','assets/math/reader.html','assets/math/fonts/KaTeX_Main-Regular.woff2','USER_GUIDE.md','USER_GUIDE.zh-CN.md','licenses/Microsoft.Web.WebView2.LICENSE.txt')
 $taskRequired += @('LICENSE','NOTICE','SECURITY.md','THIRD_PARTY_NOTICES.md','assets/math/LICENSE','licenses/dotnet/Microsoft.NETCore.App.LICENSE.txt','licenses/dotnet/Microsoft.NETCore.App.THIRD-PARTY-NOTICES.txt','licenses/dotnet/Microsoft.WindowsDesktop.App.LICENSE.txt')
 foreach ($taskFile in $taskRequired) { if (-not (Test-Path -LiteralPath (Join-Path $taskApp $taskFile) -PathType Leaf)) { throw ('Missing release dependency: ' + $taskFile) } }
+foreach ($taskFile in @('WordsCat.exe','START_HERE.txt','app/portable-layout.json')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $taskPortableRoot $taskFile) -PathType Leaf)) { throw ('Missing portable layout file: ' + $taskFile) }
+}
 if (-not $taskConfig.runtimeOptions.includedFrameworks -or $taskConfig.runtimeOptions.framework -or $taskConfig.runtimeOptions.frameworks) { throw 'The release must bundle its .NET frameworks.' }
-$taskFiles = @(Get-ChildItem -LiteralPath $taskApp -Recurse -File)
+$taskFiles = @(Get-ChildItem -LiteralPath $taskPortableRoot -Recurse -File)
 foreach ($taskFile in $taskFiles) {
-    $taskRelative = $taskFile.FullName.Substring($taskApp.Length + 1).Replace('\','/')
+    $taskRelative = $taskFile.FullName.Substring($taskPortableRoot.Length + 1).Replace('\','/')
     if ($taskRelative -match '(^|/)(Data|PreviewData|Cache|fixtures|\.git|\.test-results)(/|$)|(^|/)(settings\.json|\.env(?:\..*)?)$|\.(pfx|pem|key|p12|p8|bak|log|tmp|pdb)$') { throw ('Private/generated file in release: ' + $taskRelative) }
 }
 Add-Type -AssemblyName System.IO.Compression
@@ -100,7 +112,7 @@ $taskCreatedArchive = $null
 try {
     $taskCreatedArchive = [IO.Compression.ZipArchive]::new($taskZipStream,[IO.Compression.ZipArchiveMode]::Create,$false)
     foreach ($taskFile in $taskFiles) {
-        $taskEntryName = 'WordsCat/' + $taskFile.FullName.Substring($taskApp.Length + 1).Replace('\','/')
+        $taskEntryName = 'WordsCat/' + $taskFile.FullName.Substring($taskPortableRoot.Length + 1).Replace('\','/')
         [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($taskCreatedArchive,$taskFile.FullName,$taskEntryName,[IO.Compression.CompressionLevel]::Optimal)
     }
 }
@@ -114,7 +126,7 @@ try {
     }
     if ($taskEntries.Count -ne $taskFiles.Count) { throw 'Archive contents differ from the verified staging directory.' }
     foreach ($taskFile in $taskFiles) {
-        $taskExpectedName = 'WordsCat/' + $taskFile.FullName.Substring($taskApp.Length + 1).Replace('\','/')
+        $taskExpectedName = 'WordsCat/' + $taskFile.FullName.Substring($taskPortableRoot.Length + 1).Replace('\','/')
         if (-not $taskEntryNames.Contains($taskExpectedName)) { throw 'Archive contents differ from the verified staging directory.' }
     }
     if ($taskEntries.FullName | Where-Object { $_ -match '(^|/)(Data|PreviewData|Cache|fixtures|\.git)(/|$)' }) { throw 'Private directory in archive.' }
@@ -125,5 +137,5 @@ $taskHash = (Get-FileHash -LiteralPath $taskZip -Algorithm SHA256).Hash.ToLowerI
 [IO.File]::WriteAllText((Join-Path $taskOutput 'SHA256SUMS.txt'), ($taskHash + '  ' + $taskName + "`n"), [Text.UTF8Encoding]::new($false))
 Write-Output ('Archive: ' + $taskZip)
 Write-Output ('SHA256: ' + $taskHash)
-Write-Output ('Verified staging directory: ' + $taskApp)
+Write-Output ('Verified staging directory: ' + $taskPortableRoot)
 Write-Output ('Files: ' + $taskFiles.Count)
