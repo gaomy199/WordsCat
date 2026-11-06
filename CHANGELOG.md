@@ -8,6 +8,12 @@
 
 - Refresh the public README with download/setup steps, keyboard shortcuts, developer checks, output-directory guidance and license links. Move temporary working-tree/publication status into project records; keep the English entry documentation and prominent Chinese guide link. Documentation only; application version remains 0.3.7.
 
+## 0.3.19 · 2026-11-06 · Uncommitted
+
+- Omit empty vocabulary fields and their headings from Markdown preview and saved entries, treating absent and whitespace-only values as empty. Retain all editable fields in the collection window and preserve nonempty fields on shared template rows; do not rewrite template files or existing notebooks.
+- Confirm from the save/replacement code that duplicate replacement renders the current complete entry, including fields filled after an earlier save. Keep existing replacement boundaries, backup and undo behavior.
+- Update publish/ via offline build only. At the user's request, do not run tests, inspection/check scripts, UI checks, model requests or packaging; no commit or upload.
+
 ## 0.3.18 · 2026-11-05 · Uncommitted
 
 - Fix vocabulary field growth after toggling supplements off: separate the scrolling viewport from the content-height field table, clear the scroll offset during rebuilds, and retain fixed row heights and other field edits.

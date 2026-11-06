@@ -275,7 +275,43 @@ public sealed class VocabularyTemplate
             ["date"] = entry.CreatedAt.ToString("yyyy-MM-dd"),
             ["captured_at"] = entry.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss zzz")
         };
-        return Regex.Replace(EntryTemplate, @"\{\{([a-z0-9_]+)\}\}", m => MarkdownValue(values.GetValueOrDefault(m.Groups[1].Value, ""))).TrimEnd() + "\n";
+        string layout = OmitEmptyFields(values);
+        return Regex.Replace(layout, @"\{\{([a-z0-9_]+)\}\}", m => MarkdownValue(values.GetValueOrDefault(m.Groups[1].Value, "") ?? "")).TrimEnd() + "\n";
+    }
+    private string OmitEmptyFields(IReadOnlyDictionary<string, string> values)
+    {
+        var empty = Fields.Where(field => string.IsNullOrWhiteSpace(values.GetValueOrDefault(field.Key, ""))).ToArray();
+        if (empty.Length == 0) return EntryTemplate;
+        var emptyKeys = empty.Select(field => field.Key).ToHashSet(StringComparer.Ordinal);
+        string layout = EntryTemplate;
+        foreach (var field in empty)
+        {
+            if (string.IsNullOrWhiteSpace(field.Label)) continue;
+            string label = Regex.Escape(field.Label), placeholder = Regex.Escape("{{" + field.Key + "}}");
+            string caption = @"(?:\*\*" + label + @"\*\*|__" + label + @"__|" + label + ")";
+            // A custom template can put a field heading above its value on a separate line.
+            layout = Regex.Replace(layout, @"(?m)^[ \t]*(?:#{1,6}[ \t]+|[-*+][ \t]+)?" + caption
+                + @"[ \t]*[:：]?[ \t]*\r?\n(?:[ \t]*\r?\n)*[ \t]*" + placeholder + @"[ \t]*(?:\r?\n|$)", "");
+        }
+        // Decide from template placeholders before interpolation, never from user Markdown.
+        // Keep shared lines if any placeholder still contains a value (including metadata).
+        layout = Regex.Replace(layout, @"[^\r\n]+(?:\r\n|\r|\n|$)", line =>
+        {
+            var placeholders = Regex.Matches(line.Value, @"\{\{([a-z0-9_]+)\}\}");
+            return placeholders.Count > 0 && placeholders.Cast<Match>().All(match => emptyKeys.Contains(match.Groups[1].Value))
+                ? "" : line.Value;
+        });
+        foreach (var field in empty)
+        {
+            if (string.IsNullOrWhiteSpace(field.Label)) continue;
+            string label = Regex.Escape(field.Label), placeholder = Regex.Escape("{{" + field.Key + "}}");
+            // Remove an empty labelled segment from a shared inline row, retaining its other fields.
+            string caption = @"(?:\*\*" + label + @"\*\*|__" + label + @"__|(?<![\p{L}\p{N}_])" + label + ")";
+            layout = Regex.Replace(layout, @"(?<before>[ \t]*[|;；·/][ \t]*)?" + caption + @"[ \t]*[:：][ \t]*" + placeholder
+                + @"(?<after>[ \t]*[|;；·/][ \t]*)?", match =>
+                    match.Groups["before"].Success && match.Groups["after"].Success ? match.Groups["after"].Value : "");
+        }
+        return layout;
     }
     private static string MarkdownValue(string value)
     {

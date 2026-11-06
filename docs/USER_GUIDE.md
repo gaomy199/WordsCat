@@ -1,6 +1,6 @@
 # WordsCat user guide
 
-Version **0.3.18** · Windows 11
+Version **0.3.19** · Windows 11
 
 WordsCat translates short Chinese or English selections and saves reviewed vocabulary to Markdown notebooks.
 
@@ -10,7 +10,7 @@ Download a `WordsCat-VERSION-win-x64.zip` asset from [GitHub Releases](https://g
 
 When packaging locally, the ready-to-run ZIP is written under `dist/`, with its checksum in `dist/SHA256SUMS.txt`. The default `publish/` folder contains the framework-dependent development build.
 
-Version 0.3.18 is built locally as `publish/WordsCat.exe`. No new ZIP is generated for this version. Check the chosen Release for its actual version.
+Version 0.3.19 is built locally as `publish/WordsCat.exe`. No new ZIP is generated for this version. Check the chosen Release for its actual version.
 
 On first launch without a saved key, a short, dismissible guide offers **Open settings** or **Set up later**. Open **Settings → Models & recognition → Model service** and choose **DeepSeek**, **Gitee AI · Moark**, or **Custom OpenAI-compatible**. DeepSeek retains `https://api.deepseek.com` and `deepseek-flash`. The Gitee preset uses `https://ai.gitee.com/v1`; a Gitee homepage URL is also normalized to this API path. For a custom service, enter its HTTPS Base URL.
 
@@ -65,6 +65,8 @@ After translating, type a question below the reading panes and press Enter or cl
 Select a word or phrase in the source and choose **Save word** (or **Alt+W**). Review its editable fields and the target notebook before saving. Base cards include word, lemma, part of speech, meaning, the source sentence, and its translation. Meaning lists the contextual sense first, followed by other common senses. In **Settings → Notebooks & template**, use the four switches for common word forms (enabled by default, up to 3), IPA, AI examples with translations, and common collocations (the last three are disabled by default). Each word form has its spelling, part of speech and meaning; for generalizable, examples include generalize, generalization and generalized. IPA follows the lemma and precedes part of speech in the editor and standard Markdown. AI examples never replace the verified source sentence. Changes affect new entries. Old switch values migrate to the word-forms switch. Legacy contextual-meaning labels update in memory. Custom inline layouts, template files and saved notes are preserved.
 
 The editor offers **Add IPA**, **AI examples** and **Add collocations** before **Cancel**. Click once to add and fill the chosen fields; the button stays lightly highlighted. Click again to remove that supplement from the editor, Markdown preview and saved entry; the button returns to its neutral color. AI examples and their translations switch together. Fields already present from defaults or the template start highlighted. Other edits are retained. These actions do not change the settings defaults or template file; initial automatic enrichment still follows the defaults. Review the new fields and Markdown before saving.
+
+Blank fields remain editable in the collection window. The Markdown preview and saved entry omit their headings and empty rows, including missing source sentences, translations and supplemental fields. Whitespace-only values are treated as empty. A later duplicate replacement writes the current complete entry, including newly filled fields.
 
 The app writes deterministic Markdown and checks duplicates only in the selected notebook. For a duplicate, **Yes** replaces its existing entries with the current entry; **No** returns to editing. Other words remain intact. Backups and undo with external-edit checks apply to replacements too. Unsafe entry boundaries prevent replacement. Switching the current destination does not replace the default notebook. Your notebooks remain normal Markdown files usable in Obsidian or another editor.
 

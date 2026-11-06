@@ -9,7 +9,7 @@
     <ApplicationIcon>..\..\assets\wordscat.ico</ApplicationIcon>
     <AssemblyName>WordsCat</AssemblyName>
     <RootNamespace>ReadDock</RootNamespace>
-    <Version>0.3.18</Version>
+    <Version>0.3.19</Version>
     <Company>WordsCat</Company>
     <Product>单词猫 WordsCat</Product>
     <Description>中英互译与 Obsidian 生词收藏</Description>
