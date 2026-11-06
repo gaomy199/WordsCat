@@ -16,16 +16,30 @@ internal sealed class MathReadingView : UserControl
     bool rendering, renderQueued;
     string? renderedPayload;
     readonly bool compact;
+    readonly ReadingZoom zoom;
+    internal double ZoomFactor => zoom.Factor;
     internal event Action? Rendered;
     const string DocumentUrl = "https://readdock-assets.invalid/reader.html";
     public string SelectedText { get; private set; } = "";
     public string? RenderError { get; private set; }
     internal string NavigationDiagnostic { get; private set; } = "not initialized";
 
-    public MathReadingView(RichTextBox editor, bool original, bool compact = false)
+    public MathReadingView(RichTextBox editor, bool original, bool compact = false, ReadingZoom? zoom = null)
     {
         this.compact = compact;
+        this.zoom = zoom ?? new ReadingZoom(new AppConfig(), () => { });
         this.editor = editor; Dock = DockStyle.Fill; Margin = Padding.Empty;
+        ApplyZoom();
+        this.zoom.Changed += ApplyZoom;
+        browser.ZoomFactorChanged += (_, _) =>
+        {
+            if (documentReady && !IsDisposed) this.zoom.SetFactor(browser.ZoomFactor);
+        };
+        editor.MouseWheel += (_, _) =>
+        {
+            if ((ModifierKeys & Keys.Control) != 0 && editor.IsHandleCreated)
+                editor.BeginInvoke((Action)(() => { if (!IsDisposed) this.zoom.SetFactor(editor.ZoomFactor); }));
+        };
         DoubleBuffered = true; BackColor = Ui.Surface; browser.DefaultBackgroundColor = Ui.Surface;
         var reading = new TabPage("阅读"); reading.Controls.Add(browser);
         var raw = new TabPage(original ? "编辑原文" : "文本"); raw.Controls.Add(editor);
@@ -70,6 +84,7 @@ internal sealed class MathReadingView : UserControl
             core.NavigationStarting += (_, e) =>
             {
                 e.Cancel = e.Uri != DocumentUrl;
+                if (!e.Cancel) documentReady = false;
                 NavigationDiagnostic = e.Cancel ? "unexpected navigation cancelled" : "local document starting";
             };
             core.NavigationCompleted += (_, e) =>
@@ -77,7 +92,7 @@ internal sealed class MathReadingView : UserControl
                 NavigationDiagnostic += " completed " + e.IsSuccess + " " + e.WebErrorStatus;
                 documentReady = e.IsSuccess;
                 renderedPayload = null;
-                if (documentReady) Render();
+                if (documentReady) { ApplyZoom(); Render(); }
             };
             core.NewWindowRequested += (_, e) => e.Handled = true;
             core.PermissionRequested += (_, e) => e.State = CoreWebView2PermissionState.Deny;
@@ -94,6 +109,13 @@ internal sealed class MathReadingView : UserControl
         }
     }
     public void RefreshAppearance() { browser.DefaultBackgroundColor = Ui.Surface; Render(); }
+    void ApplyZoom()
+    {
+        if (IsDisposed) return;
+        if (Math.Abs(browser.ZoomFactor - zoom.Factor) >= 0.0001) browser.ZoomFactor = zoom.Factor;
+        editor.ZoomFactor = (float)zoom.Factor;
+        Rendered?.Invoke();
+    }
     internal void RefreshContent() { refresh.Stop(); Render(); }
     public void RefreshLanguage() => UiText.Apply(this);
     internal Task<string> InspectAsync(string script) => initialized
@@ -136,7 +158,7 @@ internal sealed class MathReadingView : UserControl
     }
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { refresh.Dispose(); picture.Image?.Dispose(); if (compact) { tabs.Dispose(); picture.Dispose(); } }
+        if (disposing) { zoom.Changed -= ApplyZoom; refresh.Dispose(); picture.Image?.Dispose(); if (compact) { tabs.Dispose(); picture.Dispose(); } }
         base.Dispose(disposing);
     }
 }

@@ -1,6 +1,6 @@
 # WordsCat user guide
 
-Version **0.4.1** · Windows 11
+Version **0.4.2** · Windows 11
 
 WordsCat translates short Chinese or English selections and saves reviewed vocabulary to Markdown notebooks.
 
@@ -10,7 +10,7 @@ Download a `WordsCat-VERSION-win-x64.zip` asset from [GitHub Releases](https://g
 
 When packaging locally, the ready-to-run ZIP is written under `dist/`, with its checksum in `dist/SHA256SUMS.txt`. The default `publish/` folder contains the framework-dependent development build.
 
-Version 0.4.1 is built locally as `publish/WordsCat.exe`. No new ZIP is generated in this maintenance task. Check the chosen Release for its actual version.
+Version 0.4.2 is built locally as `publish/WordsCat.exe`. No new ZIP is generated in this maintenance task. Check the chosen Release for its actual version.
 
 Portable ZIPs from 0.4.1 have a small outer `WordsCat.exe` launcher and an `app/` folder containing the application, runtime, resources, guides and licenses. Run the outer launcher and keep `app/` beside it. User data belongs in the outer `Data/` beside the launcher; the application creates it on first use. The development `publish/` output retains its original flat layout.
 
@@ -41,6 +41,8 @@ These are the default shortcuts. Under **Settings → Reading preferences**, cli
 Chinese and English are detected automatically. The left pane is the source; the right pane is the translation. **Swap** moves the initial translation into the source and detects its language again. Editing a completed source clears its previous translation and follow-up context.
 
 The main reading panes use 16px for Chinese characters and punctuation, while English stays at 18px and formulas retain their original size. Both panes use compact reading tabs, with a separate gap before the action and follow-up area. The follow-up box is a vertically centered single line; Enter sends the question.
+
+The compact popup now also uses 18px English and 16px Chinese, keeping its previous formula sizes and 0.4.1 control layout. Use **Ctrl+mouse wheel** to resize content. Both main panes, their text tabs and the popup share the last zoom level, automatically saved for new popups and application restarts. Popup height adapts to zoom while retaining its height cap and scrolling.
 
 Capture results first appear in a lightweight popup near the selection. Open the main window from that popup when you need more space. The source tabs let you read formulas, edit text, and inspect the current capture. Captures are transient and are not stored in translation history.
 

@@ -5,6 +5,7 @@ namespace ReadDock;
 internal sealed class MainWindow : Form
 {
     private readonly AppConfig config;
+    private readonly ReadingZoom readingZoom;
     private readonly bool offlinePreview;
     private readonly bool enableGlobalHotkeys;
     private readonly ICredentialVault credentials;
@@ -61,6 +62,7 @@ internal sealed class MainWindow : Form
         this.offlinePreview = offlinePreview;
         this.enableGlobalHotkeys = enableGlobalHotkeys && !offlinePreview;
         config.NormalizeNotebooks();
+        readingZoom = new ReadingZoom(config, TrySaveConfig);
         AppHotkeys.Configure(config);
         UiText.Language = config.UiLanguage;
         history = new ReadingHistory(AppPaths.DataDirectory);
@@ -114,7 +116,7 @@ internal sealed class MainWindow : Form
         var split = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = new Padding(0, 0, 0, 12), Name = "readingCards" };
         split.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); split.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 16)); split.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         ConfigureEditor(source, false); ConfigureEditor(translation, true);
-        sourceReading = new MathReadingView(source, true); translationReading = new MathReadingView(translation, false);
+        sourceReading = new MathReadingView(source, true, zoom: readingZoom); translationReading = new MathReadingView(translation, false, zoom: readingZoom);
         source.TextChanged += (_, _) => SourceChanged();
         source.AccessibleName = "原文"; translation.AccessibleName = "译文";
         split.Controls.Add(EditorCard(sourceHeading, "阅读公式 · 编辑原文 · 查看原始截图；可选词收藏。", sourceReading), 0, 0);
@@ -364,7 +366,7 @@ internal sealed class MainWindow : Form
             if (ReferenceEquals(popup, created)) popup = null;
             cancellation?.Cancel();
             ClearSession(); if (busy) clearWhenIdle = true;
-        });
+        }, readingZoom);
         popup = created; popup.SetLoading(progress); popup.PlaceNear(anchor); popup.Show(); popup.Update();
     }
     void RefreshNotebooks()

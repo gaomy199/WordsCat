@@ -18,28 +18,26 @@ window.setReading = function (value) {
         if (block.nextSibling && block.nextSibling.nodeType === 3)
             block.nextSibling.textContent = block.nextSibling.textContent.replace(/^[\s]*\n[ \t]*/, '');
     });
-    if (!value.compact) {
-        // Only Chinese glyphs shrink; keep English prose and KaTeX at their existing sizes.
-        const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
-        const nodes = [];
-        while (walker.nextNode()) {
-            if (!walker.currentNode.parentElement.closest('.katex')) nodes.push(walker.currentNode);
-        }
-        nodes.forEach(function (node) {
-            const text = node.textContent;
-            const matches = Array.from(text.matchAll(/[\p{Script=Han}\u3000-\u303f\uff00-\uffef]+/gu));
-            if (!matches.length) return;
-            const fragment = document.createDocumentFragment();
-            let offset = 0;
-            matches.forEach(function (match) {
-                fragment.append(document.createTextNode(text.slice(offset, match.index)));
-                const span = document.createElement('span');
-                span.className = 'cjk'; span.textContent = match[0]; fragment.append(span);
-                offset = match.index + match[0].length;
-            });
-            fragment.append(document.createTextNode(text.slice(offset))); node.replaceWith(fragment);
-        });
+    // Keep Chinese at 16px in both window types while English uses the 18px baseline.
+    const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) {
+        if (!walker.currentNode.parentElement.closest('.katex')) nodes.push(walker.currentNode);
     }
+    nodes.forEach(function (node) {
+        const text = node.textContent;
+        const matches = Array.from(text.matchAll(/[\p{Script=Han}\u3000-\u303f\uff00-\uffef]+/gu));
+        if (!matches.length) return;
+        const fragment = document.createDocumentFragment();
+        let offset = 0;
+        matches.forEach(function (match) {
+            fragment.append(document.createTextNode(text.slice(offset, match.index)));
+            const span = document.createElement('span');
+            span.className = 'cjk'; span.textContent = match[0]; fragment.append(span);
+            offset = match.index + match[0].length;
+        });
+        fragment.append(document.createTextNode(text.slice(offset))); node.replaceWith(fragment);
+    });
 };
 document.addEventListener('selectionchange', function () {
     chrome.webview.postMessage(window.getSelection().toString());

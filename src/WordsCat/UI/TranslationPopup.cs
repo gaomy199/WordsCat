@@ -39,7 +39,7 @@ internal sealed class TranslationPopup : Form
     [Browsable(false)]
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public bool PreserveOnClose { get; set; }
-    public TranslationPopup(string notebook, Action openMain, Action collectWord, Action closeAction)
+    public TranslationPopup(string notebook, Action openMain, Action collectWord, Action closeAction, ReadingZoom? zoom = null)
     {
         this.closeAction = closeAction;
         Text = "单词猫 · 轻量翻译"; Font = Ui.Font(); AutoScaleMode = AutoScaleMode.None;
@@ -63,7 +63,7 @@ internal sealed class TranslationPopup : Form
         root.Controls.Add(header, 0, 0);
         content.Dock = DockStyle.Fill; content.BorderStyle = BorderStyle.None; content.ReadOnly = true; content.DetectUrls = false; content.Font = Ui.Font(12); content.Margin = new Padding(0, 8, 0, 4);
         content.AccessibleName = "轻量阅读";
-        reading = new MathReadingView(content, false, true) { Margin = content.Margin };
+        reading = new MathReadingView(content, false, true, zoom) { Margin = content.Margin };
         root.Controls.Add(reading, 0, 1);
         reading.Rendered += async () => await MeasureRenderedAsync();
         content.WordWrap = true; content.ScrollBars = RichTextBoxScrollBars.Vertical;
@@ -125,7 +125,7 @@ internal sealed class TranslationPopup : Form
             if (IsDisposed || current != revision) return;
             using var doc = JsonDocument.Parse(value);
             if (doc.RootElement.TryGetInt32(out int height))
-            { renderedHeight = Math.Max(32, height) * DeviceDpi / 96; FitContent(); }
+            { renderedHeight = (int)Math.Ceiling(Math.Max(32, height) * reading.ZoomFactor * DeviceDpi / 96d); FitContent(); }
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException or ObjectDisposedException or System.Runtime.InteropServices.COMException) { }
     }
@@ -150,7 +150,8 @@ internal sealed class TranslationPopup : Form
             float scale = DeviceDpi / 96f;
             int width = Math.Max(80, ClientSize.Width - root.Padding.Horizontal - content.Margin.Horizontal - (int)(20 * scale));
             var flags = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.NoPadding;
-            int textHeight = renderedHeight ?? (TextRenderer.MeasureText(content.Text.Length == 0 ? " " : content.Text, content.Font, new Size(width, int.MaxValue), flags).Height + (int)(12 * scale));
+            using var contentFont = new Font(content.Font.FontFamily, content.Font.Size * content.ZoomFactor, content.Font.Style);
+            int textHeight = renderedHeight ?? (TextRenderer.MeasureText(content.Text.Length == 0 ? " " : content.Text, contentFont, new Size(width, int.MaxValue), flags).Height + (int)(12 * scale));
             int statusHeight = Math.Clamp(TextRenderer.MeasureText(status.Text, status.Font, new Size(width, int.MaxValue), flags).Height + (int)(6 * scale), (int)(24 * scale), (int)(56 * scale));
             root.RowStyles[2].Height = statusHeight;
             int fixedHeight = root.Padding.Vertical + Padding.Vertical + (int)root.RowStyles[0].Height + (int)root.RowStyles[3].Height + statusHeight + content.Margin.Vertical;

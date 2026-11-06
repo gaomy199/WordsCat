@@ -9,8 +9,10 @@ internal static class UiSelfTests
     {
         Directory.CreateDirectory(directory);
         Ui.SetAppearance(new AppConfig());
+        var zoomConfig = new AppConfig { TemplateFile = AppPaths.DefaultTemplate };
+        var zoom = new ReadingZoom(zoomConfig, zoomConfig.Save);
         using var editor = new RichTextBox { Text = "Let $\\theta=q$.\n\n$$H=\\frac{m}{2}(l\\dot q)^2+mgl(1-\\cos q)$$\n\n$$p=\\frac{\\partial T}{\\partial\\dot q}$$\n\n<script>alert('untrusted')</script>" };
-        using var view = new MathReadingView(editor, true);
+        using var view = new MathReadingView(editor, true, zoom: zoom);
         using var host = new Form { Text = "单词猫 · 离线公式验证", ClientSize = new Size(800, 600) };
         host.Controls.Add(view);
         host.Shown += async (_, _) =>
@@ -47,7 +49,7 @@ internal static class UiSelfTests
                 string colors = await view.InspectAsync("getComputedStyle(document.body).backgroundColor");
                 if (colors != "\"rgb(32, 32, 32)\"") throw new Exception("Reading theme did not refresh: " + colors);
                 Ui.SetAppearance(new AppConfig());
-                using (var popup = new TranslationPopup("弹窗高度验证", () => { }, () => { }, () => { }))
+                using (var popup = new TranslationPopup("弹窗高度验证", () => { }, () => { }, () => { }, zoom))
                 {
                     const string popupSource = "SOURCE_ONLY $q_1$\n\n$$p=\\frac{m}{2}$$\n<script>not executable</script>";
                     popup.SetResult("译文 $q_1$\n\n$$p=\\frac{m}{2}$$", "翻译完成 · 输入 92 / 输出 2 tokens", popupSource);
@@ -68,7 +70,12 @@ internal static class UiSelfTests
                         throw new Exception("Popup did not render the current source/translation.");
                     }
                     await WaitPopup("译文", true);
-                    if (await popup.InspectReadingAsync("getComputedStyle(document.body).fontSize") != "\"16px\"") throw new Exception("Popup compact reading font was not applied.");
+                    string popupTypography = await popup.InspectReadingAsync("({english:getComputedStyle(document.body).fontSize,chinese:getComputedStyle(document.querySelector('.cjk')).fontSize,math:getComputedStyle(document.querySelector('.katex')).fontSize})");
+                    using (var typography = JsonDocument.Parse(popupTypography))
+                    {
+                        if (typography.RootElement.GetProperty("english").GetString() != "18px" || typography.RootElement.GetProperty("chinese").GetString() != "16px" || typography.RootElement.GetProperty("math").GetString() != "18.4px")
+                            throw new Exception("Popup English should increase while Chinese and math keep their baseline sizes: " + popupTypography);
+                    }
                     var toggle = Descendants(popup).OfType<Button>().Single(b => b.Name == "popupOriginalToggle");
                     if (Descendants(popup).OfType<Button>().Any(b => b.Text == "复制译文") || toggle.Text != "显示原文") throw new Exception("Popup action did not change to source toggle.");
                     toggle.PerformClick(); await WaitPopup("SOURCE_ONLY", true);
@@ -77,6 +84,26 @@ internal static class UiSelfTests
                     if (popup.ShowingOriginal) throw new Exception("Popup failed to restore translation.");
                     popup.SetResult("物理智能", "短译文", popupSource); await WaitPopup("物理智能");
                     int shortHeight = popup.Height;
+                    zoom.SetFactor(1.5);
+                    await Task.Delay(350);
+                    if (Descendants(view).OfType<Microsoft.Web.WebView2.WinForms.WebView2>().Single().ZoomFactor != 1.5 || Descendants(popup).OfType<Microsoft.Web.WebView2.WinForms.WebView2>().Single().ZoomFactor != 1.5 || editor.ZoomFactor != 1.5f)
+                        throw new Exception("Content zoom did not synchronize the main view, popup and text editor.");
+                    if (popup.Height <= shortHeight || AppConfig.Load().ReadingZoomFactor != 1.5)
+                        throw new Exception("Content zoom did not resize the popup or persist to isolated settings.");
+                    var restoredZoom = new ReadingZoom(AppConfig.Load(), () => { });
+                    using (var reopened = new TranslationPopup("字号恢复验证", () => { }, () => { }, () => { }, restoredZoom))
+                    {
+                        reopened.SetResult("字号恢复 English", "离线样本"); reopened.Show(host);
+                        for (int attempt = 0; attempt < 100; attempt++)
+                        {
+                            if (await reopened.InspectReadingAsync("document.getElementById('content').textContent") == "\"字号恢复 English\"") break;
+                            await Task.Delay(100);
+                        }
+                        if (await reopened.InspectReadingAsync("document.getElementById('content').textContent") != "\"字号恢复 English\"" || Descendants(reopened).OfType<Microsoft.Web.WebView2.WinForms.WebView2>().Single().ZoomFactor != 1.5)
+                            throw new Exception("A newly opened popup did not restore the saved content zoom.");
+                        reopened.Close();
+                    }
+                    zoom.SetFactor(1); await Task.Delay(250);
                     popup.SetResult(string.Join("\n", Enumerable.Repeat("这是一行较长的翻译，用于验证纵向滚动和固定高度上限。", 80)), "长译文");
                     await WaitPopup("这是一行较长的翻译");
                     int maxHeight = 330 * popup.DeviceDpi / 96;

@@ -8,6 +8,12 @@
 
 - Refresh the public README with download/setup steps, keyboard shortcuts, developer checks, output-directory guidance and license links. Move temporary working-tree/publication status into project records; keep the English entry documentation and prominent Chinese guide link. Documentation only; application version remains 0.3.7.
 
+## 0.4.2 · 2026-11-06 · Uncommitted
+
+- Increase compact-popup English prose from 16px to 18px while keeping Chinese at 16px, formula sizing and the 0.4.1 control layout.
+- Persist the shared content zoom as reading_zoom_factor in existing settings. Synchronize both main reading panes, text tabs and selection popups; restore it for new windows and application restarts. Recalculate popup height using the zoom factor while retaining the existing height cap and scrolling.
+- Update the popup typography regression and add isolated UI coverage for zoom synchronization, settings persistence, popup resizing and a newly opened popup. At the user's request, build publish/ only; automated and actual-window validation and commits are left to the user.
+
 ## 0.4.1 · 2026-11-06 · Uncommitted
 
 - Validate registration conflicts only for shortcuts changed in the settings draft, so an unavailable existing shortcut cannot block saving language or unrelated preferences. Disable actual desktop hotkey registration/probing in offline previews and UI regression windows; add an in-memory settings regression and separate language-failure flags. Version remains 0.4.1.

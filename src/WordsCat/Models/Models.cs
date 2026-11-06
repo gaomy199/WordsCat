@@ -31,6 +31,7 @@ public sealed class AppConfig
     public bool ShowFloating { get; set; } = true;
     public bool ShowOnStartup { get; set; } = true;
     public bool SidebarCollapsed { get; set; }
+    public double ReadingZoomFactor { get; set; } = 1;
     public List<NotebookTarget> Notebooks { get; set; } = [];
     public string DefaultNotebookId { get; set; } = "";
     [System.Text.Json.Serialization.JsonIgnore] public string ActiveNotebookId { get; set; } = "";
@@ -105,6 +106,7 @@ public sealed class AppConfig
         TranslationDirection = "auto";
         if (TranslationInstruction == LegacyTranslationInstruction) TranslationInstruction = DefaultTranslationInstruction;
         HistoryLimit = Math.Clamp(HistoryLimit, 0, 1000);
+        ReadingZoomFactor = ReadingZoom.Normalize(ReadingZoomFactor);
         if (Notebooks.Count == 0) Notebooks.Add(new NotebookTarget { Name = Path.GetFileNameWithoutExtension(TargetFile), File = PortablePaths.Resolve(TargetFile) });
         if (Notebooks.Count > 40) throw new InvalidDataException("最多支持 40 个单词本。");
         foreach (var n in Notebooks)
